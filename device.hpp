@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 
 #include "protocol/protocol.hpp"
-#include "json/single_include/nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
 using json = nlohmann::json;
 using ordered_json = nlohmann::ordered_json;
 

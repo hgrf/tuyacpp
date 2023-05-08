@@ -5,7 +5,7 @@
 
 #include <openssl/evp.h>
 
-#include "json/single_include/nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
 
 #include "common.hpp"

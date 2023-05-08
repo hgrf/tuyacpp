@@ -1,3 +1,6 @@
+include(crc.pri)
+include(json.pri)
+
 INCLUDEPATH += $$PWD
 
 # SOURCES +=
