@@ -89,6 +89,10 @@ public:
             return ret;
         }
 
+        virtual int heartBeat() {
+
+        }
+
     protected:
         std::unique_ptr<Message> mMsg;
 
@@ -117,7 +121,11 @@ public:
         fd_set readFds;
         FD_ZERO(&readFds);
         int maxFd = 0;
+
         for (const auto &it : mHandlers) {
+            /* run heartBeat function of all handlers, regardless of socket state */
+            it.second->heartBeat();
+
             FD_SET(it.first, &readFds);
             if (it.first > maxFd)
                 maxFd = it.first;

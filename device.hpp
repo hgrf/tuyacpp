@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <unordered_map>
@@ -18,6 +19,8 @@ using ordered_json = nlohmann::ordered_json;
 namespace tuya {
 
 class Device {
+    typedef std::function<void(void)> EventCallback_t;
+
     enum Command {
         DP_QUERY        = 0x0a,  //  10 // FRM_QUERY_STAT      // UPDATE_START_CMD - get data points
     };
@@ -52,6 +55,23 @@ public:
         // TODO: failure to look up will result in exception -> devices()[ip] should somehow return a default value (maybe device(ip)...)
         Device(loop, ip, devices()[ip]["uuid"], devices()[ip]["id"], devices()[ip]["key"])
     {
+    }
+
+    void registerEventCallback(Loop::Event::Type t, EventCallback_t cb) {
+        const auto& it = mEventCallbacks.find(t);
+        if (it == mEventCallbacks.end())
+            mEventCallbacks[t] = {cb};
+        else
+            mEventCallbacks.at(t).push_back(cb);
+    }
+
+    void eventCallback(Loop::Event::Type t) {
+        const auto& it = mEventCallbacks.find(t);
+        if (it == mEventCallbacks.end())
+            return;
+
+        for (const auto &cb : it->second)
+            cb();
     }
 
     ~Device() {
@@ -113,13 +133,15 @@ public:
 private:
     class LoopHandler : public Loop::Handler {
     public:
-        LoopHandler(const Device& dev, const std::string& key) : Loop::Handler(key), mDevice(dev) {}
+        LoopHandler(Device& dev, const std::string& key) : Loop::Handler(key), mDevice(dev) {}
 
         virtual int handle(int fd, Loop::Event e, bool verbose) override {
             (void) verbose;
             int ret = Loop::Handler::handle(fd, e, false);
             if (ret < 0)
                 return ret;
+
+            mDevice.eventCallback(Loop::Event::Type(e));
 
             switch(Loop::Event::Type(e)) {
             case Loop::Event::READ:
@@ -134,7 +156,7 @@ private:
         }
 
     private:
-        const Device& mDevice;
+        Device& mDevice;
     };
 
     int mSocketFd;
@@ -144,6 +166,7 @@ private:
     std::string mLocalKey;
     Loop& mLoop;
     LoopHandler mLoopHandler;
+    std::map<Loop::Event::Type, std::list<EventCallback_t>> mEventCallbacks;
     static ordered_json mDevices;
 };
 
