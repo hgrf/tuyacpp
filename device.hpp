@@ -24,7 +24,7 @@ class Device {
 
 public:
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
-        mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop), mLoopHandler(key)
+        mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop), mLoopHandler(*this, key)
     {
         mSocketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (mSocketFd < 0) {
@@ -84,6 +84,10 @@ public:
         return sendRaw(msg->serialize(mLocalKey));
     }
 
+    const std::string& ip() const {
+        return mIp;
+    }
+
     operator std::string() const {
         std::ostringstream ss;
         ss << std::hex << "Device { gwId: " << mGwId << ", devId: " << mDevId
@@ -109,7 +113,7 @@ public:
 private:
     class LoopHandler : public Loop::Handler {
     public:
-        LoopHandler(const std::string& key) : Loop::Handler(key) {}
+        LoopHandler(const Device& dev, const std::string& key) : Loop::Handler(key), mDevice(dev) {}
 
         virtual int handle(int fd, Loop::Event e, bool verbose) override {
             (void) verbose;
@@ -117,11 +121,15 @@ private:
             if ((ret < 0) || Loop::Event::Type(e) != Loop::Event::READ)
                 return ret;
 
-            std::cout << "[DEVICE] new message from device: " << static_cast<std::string>(*mMsg) << std::endl;
+            std::cout << "[DEVICE] new message from " << mDevice.ip() << ": " << static_cast<std::string>(*mMsg) << std::endl;
         }
+
+    private:
+        const Device& mDevice;
     };
 
     int mSocketFd;
+    std::string mIp;
     std::string mGwId;
     std::string mDevId;
     std::string mLocalKey;
