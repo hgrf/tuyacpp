@@ -42,7 +42,7 @@ public:
             throw std::runtime_error("Failed to connect");
         }
 
-        std::cout << "Connected to " << ip << ": " << (const std::string) *this << std::endl;
+        std::cout << "[DEVICE] Connected to " << ip << ": " << (const std::string) *this << std::endl;
 
         mLoop.attach(mSocketFd, &mLoopHandler);
         sendCommand(DP_QUERY);
@@ -69,7 +69,7 @@ public:
             return -1;
         }
 
-        std::cout << "Message sent, waiting for response..." << std::endl;
+        std::cout << "[DEVICE] Sent " << ret << " bytes to " << ip() << std::endl;
 
         return 0;
     }
@@ -118,10 +118,19 @@ private:
         virtual int handle(int fd, Loop::Event e, bool verbose) override {
             (void) verbose;
             int ret = Loop::Handler::handle(fd, e, false);
-            if ((ret < 0) || Loop::Event::Type(e) != Loop::Event::READ)
+            if (ret < 0)
                 return ret;
 
-            std::cout << "[DEVICE] new message from " << mDevice.ip() << ": " << static_cast<std::string>(*mMsg) << std::endl;
+            switch(Loop::Event::Type(e)) {
+            case Loop::Event::READ:
+                std::cout << "[DEVICE] new message from " << mDevice.ip() << ": " << static_cast<std::string>(*mMsg) << std::endl;
+                break;
+            case Loop::Event::CLOSING:
+                std::cout << "[DEVICE] " << mDevice.ip() << " disconnected" << std::endl;
+                break;
+            }
+
+            return ret;
         }
 
     private:

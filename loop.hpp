@@ -1,12 +1,14 @@
 #pragma once
 
 #include <iostream>
+#include <list>
 #include <map>
 
 #include <stddef.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <unistd.h>
 
 #include "protocol/message.hpp"
 
@@ -18,6 +20,7 @@ public:
     public:
         enum Type : uint8_t {
             READ,
+            CLOSING,
         };
 
         Event(Type t) : mType(t) {}
@@ -49,16 +52,20 @@ public:
         }
 
         virtual int handle(int fd, Event e, bool verbose = true) {
+            int ret = 0;
+
             if (verbose)
                 std::cout << "Handling event from fd " << fd << ": " << std::string(e) << std::endl;
+
             switch(Event::Type(e))
             {
             case Event::READ: {
                 struct sockaddr_in addr;
                 unsigned slen=sizeof(sockaddr);
-                int ret = recvfrom(fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
+                ret = recvfrom(fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
                 if (ret <= 0) {
-                    std::cerr << "recfrom() -> " << ret << std::endl;
+                    if (ret == 0)
+                        ret = -EINVAL;
                     break;
                 }
 
@@ -70,9 +77,16 @@ public:
                     std::cout << "received " << ret  << " bytes from " << addr_str << ": " << std::string(*mMsg) << std::endl;
                 break;
             }
+            case Event::CLOSING:
+                if (verbose)
+                    std::cout << "socket is closing" << std::endl;
+                break;
             default:
-                throw std::runtime_error("Unimplemented event");
+                std::cerr << "unimplemented event: " << (int) Event::Type(e) << std::endl;
+                ret = -EINVAL;
             }
+
+            return ret;
         }
 
     protected:
@@ -100,11 +114,6 @@ public:
     }
 
     int loop(unsigned int timeoutMs = 1000) {
-        if (!mHandlers.size()) {
-            std::cerr << "no handler defined" << std::endl;
-            return -EINVAL;
-        }
-
         fd_set readFds;
         FD_ZERO(&readFds);
         int maxFd = 0;
@@ -124,14 +133,23 @@ public:
             std::cerr << "select() failed: " << ret << std::endl;
             return ret;
         } else {
+            std::list<int> removeList;
             for (auto &it : mHandlers) {
                 if (FD_ISSET(it.first, &readFds)) {
-                    it.second->handle(it.first, Event::READ);
+                    int handleRet = it.second->handle(it.first, Event::READ);
+                    if (handleRet < 0) {
+                        it.second->handle(it.first, Event::CLOSING);
+                        removeList.push_back(it.first);
+                    }
                     ret--;
                 }
 
                 if (!ret)
                     break;
+            }
+            for (const auto &fd : removeList) {
+                close(fd);
+                mHandlers.erase(fd);
             }
         }
     }
