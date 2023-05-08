@@ -52,7 +52,7 @@ public:
             char addr_str[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
             if (ret > 0) {
-                auto msg = Message::deserialize((unsigned char*) buffer, ret);
+                auto msg = Message::deserialize(std::string(buffer, ret));
                 std::cout << "Received message from " << addr_str << ": " << static_cast<std::string>(*msg) << std::endl;
 
                 /* try to instantiate device */

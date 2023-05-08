@@ -65,11 +65,11 @@ public:
 
         std::cout << "Message sent, waiting for response..." << std::endl;
 
-        uint8_t* recvBuffer[512];
+        char recvBuffer[512];
         ssize_t recvLen = recv(mSocketFd, recvBuffer, sizeof(recvBuffer), 0);
         if (recvLen > 0) {
             std::cout << "Received " << recvLen << " bytes" << std::endl;
-            auto resp = Message::deserialize((unsigned char *) recvBuffer, (size_t) recvLen, mLocalKey);
+            auto resp = Message::deserialize(std::string(recvBuffer, recvLen), mLocalKey);
             std::cout << "Received message: " << static_cast<std::string>(*resp) << std::endl;
         } else {
             std::cerr << "recv() returned " << recvLen << std::endl;

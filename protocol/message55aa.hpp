@@ -38,31 +38,31 @@ public:
         Message(PREFIX, seqNo, cmd, data) {
     }
 
-    Message55AA(unsigned char *raw, size_t len, const std::string& key = DEFAULT_KEY, bool noRetCode = false) :
+    Message55AA(const std::string& raw, const std::string& key = DEFAULT_KEY, bool noRetCode = false) :
         Message(0, 0, 0, ordered_json{{}}) {
         const size_t headerLen = noRetCode ? (sizeof(Header) - sizeof(uint32_t)) : sizeof(Header);
         const size_t footerLen = sizeof(Footer);
-        if (len < headerLen + footerLen)
+        if (raw.length() < headerLen + footerLen)
             throw std::runtime_error("message too short");
 
-        Header *header = reinterpret_cast<Header *>(raw);
+        const Header *header = reinterpret_cast<const Header *>(raw.data());
         mPrefix = ntohl(header->prefix);
         mSeqNo = ntohl(header->seqNo);
         mCmd = ntohl(header->cmd);
         uint32_t payloadLen = ntohl(header->payloadLen);
 
-        if (len != sizeof(Header) - sizeof(uint32_t) + payloadLen)
+        if (raw.length() != sizeof(Header) - sizeof(uint32_t) + payloadLen)
             throw std::runtime_error("invalid message length");
 
-        Footer *footer = reinterpret_cast<Footer *>(raw + len - sizeof(Footer));
+        const Footer *footer = reinterpret_cast<const Footer *>(raw.data() + raw.length() - sizeof(Footer));
         if (ntohl(footer->suffix) != SUFFIX)
             throw std::runtime_error("invalid suffix");
 
-        uint32_t crc = CRC::Calculate(raw, len - sizeof(Footer), CRC::CRC_32());
+        uint32_t crc = CRC::Calculate(raw.data(), raw.length() - sizeof(Footer), CRC::CRC_32());
         if (ntohl(footer->crc) != crc)
             throw std::runtime_error("invalid CRC");
 
-        auto result = decrypt(std::string((char *)raw + headerLen, payloadLen), key);
+        auto result = decrypt(std::string(raw.data() + headerLen, payloadLen), key);
         std::cout << "Result: " << result << std::endl;
 
         try {
