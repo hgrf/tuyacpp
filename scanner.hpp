@@ -45,11 +45,9 @@ public:
         mLoop.attach(mSocketFd, &mLoopHandler);
     }
 
-    void scan() {
-        // TODO: introduce timeout
-        for (;;) {
-            mLoop.loop();
-        }
+    ~Scanner() {
+        mLoop.detach(mSocketFd);
+        close(mSocketFd);
     }
 
 private:
