@@ -63,11 +63,9 @@ public:
             throw std::runtime_error("invalid CRC");
 
         auto result = decrypt(std::string(raw.data() + headerLen, payloadLen), key);
-        std::cout << "Result: " << result << std::endl;
 
         try {
             mData = ordered_json::parse(result);
-            std::cout << "Data: " << mData << std::endl;
         } catch (const ordered_json::parse_error& e) {
             std::cerr << "Failed to parse payload: " << result << std::endl;
             std::cerr << "  Message: " << (const std::string&) *this << std::endl;

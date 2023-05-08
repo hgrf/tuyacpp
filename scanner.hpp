@@ -5,13 +5,14 @@
 #include <arpa/inet.h>
 
 #include "device.hpp"
+#include "loop.hpp"
 #include "protocol/message.hpp"
 
 namespace tuya {
 
 class Scanner {
 public:
-    Scanner(const std::string& devicesFile = "tinytuya/devices.json") {
+    Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : mLoop(loop), mLoopHandler(loop) {
         int ret;
 
         std::ifstream ifs(devicesFile);
@@ -39,32 +40,43 @@ public:
         ret = bind(mSocketFd, (struct sockaddr *)&myaddr, sizeof(myaddr));
         if (ret < 0) {
             throw std::runtime_error("Failed to bind");
-
         }
+
+        mLoop.attach(mSocketFd, &mLoopHandler);
     }
 
     void scan() {
-        struct sockaddr_in addr;
+        // TODO: introduce timeout
         for (;;) {
-            char buffer[1024];
-            unsigned slen=sizeof(sockaddr);
-            int ret = recvfrom(mSocketFd, buffer, sizeof(buffer), 0, (struct sockaddr *)&addr, &slen);
-            char addr_str[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
-            if (ret > 0) {
-                auto msg = Message::deserialize(std::string(buffer, ret));
-                std::cout << "Received message from " << addr_str << ": " << static_cast<std::string>(*msg) << std::endl;
-
-                /* try to instantiate device */
-                auto dev = Device(msg->data()["ip"]);
-
-                // TODO: better flow control
-                return;
-            }
+            mLoop.loop();
         }
     }
 
 private:
+    class LoopHandler : public Loop::Handler {
+    public:
+        LoopHandler(Loop& loop) : mLoop(loop) {}
+
+        virtual int handle(int fd, Loop::Event e, bool verbose) override {
+            (void) verbose;
+            int ret = Loop::Handler::handle(fd, e, false);
+            if ((ret < 0) || Loop::Event::Type(e) != Loop::Event::READ)
+                return ret;
+
+            const std::string ip = mMsg->data()["ip"];
+            if (mDevices.count(ip))
+                return ret;
+
+            mDevices[ip] = std::make_unique<Device>(mLoop, ip);
+            std::cout << "[SCANNER] new device discovered: " << static_cast<std::string>(*mDevices.at(ip)) << std::endl;
+        }
+    private:
+        Loop& mLoop;
+        std::map<std::string, std::unique_ptr<Device>> mDevices;
+    };
+
+    Loop& mLoop;
+    LoopHandler mLoopHandler;
     int mSocketFd;
     ordered_json mDevices;
 };

@@ -24,7 +24,8 @@ public:
 
     operator std::string() const {
         std::ostringstream ss;
-        ss << std::hex << "Message { prefix: 0x" << mPrefix << ", seqno: 0x" << mSeqNo  << ", cmd: 0x" << mCmd << " }";
+        ss << std::hex << "Message { prefix: 0x" << mPrefix << ", seqno: 0x" << mSeqNo
+           << ", cmd: 0x" << mCmd << ", data: " << mData << " }";
         return ss.str();
     }
 
@@ -44,7 +45,7 @@ protected:
         std::string err;
         const char padNum = 16 - plain.length() % 16;
         std::string result = plain + std::string(padNum, padNum);
-        int p_len = result.length(), f_len = 0;
+        int p_len = result.length(); // , f_len = 0;
 
         EVP_CIPHER_CTX* en = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(en);
@@ -74,7 +75,7 @@ protected:
         // TODO: padding operation should be symmetric with encrypt
         std::string err;
         std::string result = cipher;
-        int p_len = cipher.length(), f_len = 0;
+        int p_len = cipher.length(); // , f_len = 0;
 
         EVP_CIPHER_CTX* de = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(de);
