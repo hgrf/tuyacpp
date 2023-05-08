@@ -34,8 +34,8 @@ public:
         uint32_t suffix;
     };
 
-    Message55AA(uint32_t prefix, uint32_t seqNo, uint32_t cmd, const ordered_json& data) :
-        Message(prefix, seqNo, cmd, data) {
+    Message55AA(uint32_t seqNo, uint32_t cmd, const ordered_json& data) :
+        Message(PREFIX, seqNo, cmd, data) {
     }
 
     Message55AA(unsigned char *raw, size_t len, const std::string& key = DEFAULT_KEY, bool noRetCode = false) :
@@ -104,19 +104,5 @@ public:
 
 private:
 };
-
-std::unique_ptr<Message> parse(unsigned char *raw, size_t len, const std::string& key = DEFAULT_KEY, bool noRetCode = false) {
-    if (len < 2 * sizeof(uint32_t))
-        throw std::runtime_error("message too short");
-
-    uint32_t prefix = ntohl(*reinterpret_cast<uint32_t*>(raw));
-    switch(prefix) {
-    case Message55AA::PREFIX:
-        return std::make_unique<Message55AA>(raw, len, key, noRetCode);
-    default:
-        std::cerr << "unknown prefix: 0x" << std::hex << prefix << std::endl;
-        return nullptr;
-    }
-}
 
 } // namespace tuya

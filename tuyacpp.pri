@@ -3,7 +3,7 @@ include(json.pri)
 
 INCLUDEPATH += $$PWD
 
-# SOURCES +=
+DEFINES += TUYA_SINGLE_HEADER
 
 HEADERS += \
     $$PWD/protocol/common.hpp \
@@ -12,6 +12,10 @@ HEADERS += \
     $$PWD/protocol/message55aa.hpp \
     $$PWD/device.hpp \
     $$PWD/scanner.hpp
+
+SOURCES += \
+    $$PWD/device.cpp \
+    $$PWD/protocol/protocol.cpp
 
 LIBS += -lcrypto -lssl
 

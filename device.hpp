@@ -7,10 +7,10 @@
 #include <string>
 
 #include <arpa/inet.h>
+#include <unistd.h>
 
 #include "protocol/protocol.hpp"
 #include <nlohmann/json.hpp>
-using json = nlohmann::json;
 using ordered_json = nlohmann::ordered_json;
 
 
@@ -23,15 +23,7 @@ class Device {
 
 public:
     Device(const std::string& ip) {
-        // TODO: reduce redundancy with scanner.hpp
-        const std::string devicesFile = "tinytuya/devices.json";
-        std::ifstream ifs(devicesFile);
-        if (!ifs.is_open()) {
-            throw std::runtime_error("Failed to open file");
-        }
-        json devices = json::parse(ifs);
-
-        for (const auto& device : devices) {
+        for (const auto& device : devices()) {
             if (device["ip"] == ip) {
                 mGwId = device["uuid"];
                 mDevId = device["id"];
@@ -60,6 +52,11 @@ public:
         sendCommand(DP_QUERY);
     }
 
+    ~Device() {
+        if (mSocketFd >= 0)
+            close(mSocketFd);
+    }
+
     int sendRaw(const std::string& message) {
         if (send(mSocketFd, message.data(), message.length(), 0) != message.length()) {
             std::cerr << "Failed to send message" << std::endl;
@@ -72,7 +69,7 @@ public:
         ssize_t recvLen = recv(mSocketFd, recvBuffer, sizeof(recvBuffer), 0);
         if (recvLen > 0) {
             std::cout << "Received " << recvLen << " bytes" << std::endl;
-            auto resp = parse((unsigned char *) recvBuffer, (size_t) recvLen, mLocalKey);
+            auto resp = Message::deserialize((unsigned char *) recvBuffer, (size_t) recvLen, mLocalKey);
             std::cout << "Received message: " << static_cast<std::string>(*resp) << std::endl;
         } else {
             std::cerr << "recv() returned " << recvLen << std::endl;
@@ -87,7 +84,7 @@ public:
         };
         // TODO
         uint32_t seqNo = 1;
-        std::unique_ptr<Message> msg = std::make_unique<Message55AA>(0x55aa, seqNo, command, payload);
+        std::unique_ptr<Message> msg = std::make_unique<Message55AA>(seqNo, command, payload);
         return sendRaw(msg->serialize(mLocalKey));
     }
 
@@ -98,14 +95,29 @@ public:
         return ss.str();
     }
 
+    static const ordered_json& devices() {
+        if (!mDevices.size()) {
+            const std::string devicesFile = "tinytuya/devices.json";
+            std::ifstream ifs(devicesFile);
+            if (!ifs.is_open()) {
+                throw std::runtime_error("Failed to open file");
+            }
+            mDevices = ordered_json::parse(ifs);
+        }
+
+        return mDevices;
+    }
+
 private:
     int mSocketFd;
     std::string mGwId;
     std::string mDevId;
     std::string mLocalKey;
-
-    // TODO: make static const
-    std::map<Command, json> mCommandMap;
+    static ordered_json mDevices;
 };
 
 } // namespace tuya
+
+#ifdef TUYA_SINGLE_HEADER
+#include "device.cpp"
+#endif

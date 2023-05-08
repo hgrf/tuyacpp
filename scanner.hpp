@@ -18,7 +18,7 @@ public:
         if (!ifs.is_open()) {
             throw std::runtime_error("Failed to open file");
         }
-        mDevices = json::parse(ifs);
+        mDevices = ordered_json::parse(ifs);
         
         mSocketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (mSocketFd < 0) {
@@ -52,33 +52,14 @@ public:
             char addr_str[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
             if (ret > 0) {
-                std::cout << "Received " << ret << " bytes from " << addr_str << std::endl;
-                auto msg = parse((unsigned char*) buffer, ret);
-                // Message msg(reinterpret_cast<uint8_t *>(buffer), ret);
-                std::cout << "Received message: " << static_cast<std::string>(*msg) << std::endl;
+                auto msg = Message::deserialize((unsigned char*) buffer, ret);
+                std::cout << "Received message from " << addr_str << ": " << static_cast<std::string>(*msg) << std::endl;
 
-                for (const auto& device : mDevices) {
-                    if (device["ip"] == msg->data()["ip"]) {
-                        std::cout << "Known device:" << device << std::endl;
-                    }
-                }
+                /* try to instantiate device */
+                auto dev = Device(msg->data()["ip"]);
+
                 // TODO: better flow control
                 return;
-
-                // for (const auto& device : devices) {
-                //     if (device["ip"] == mData["ip"]) {
-                //         mData["name"] = device["name"];
-                //         mData["devId"] = device["id"];
-                //         mData["localKey"] = device["key"];
-                //         break;
-                //     }
-                // }
-
-                // // TODO: uid?
-                // TuyaDevice(
-                //     mData["ip"].get<std::string>(), mData["gwId"].get<std::string>(),
-                //     mData["devId"].get<std::string>(), "", mData["localKey"].get<std::string>()
-                // );
             }
         }
     }

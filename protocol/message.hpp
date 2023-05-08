@@ -37,6 +37,7 @@ public:
     }
 
     virtual std::string serialize(const std::string& key = DEFAULT_KEY, bool noRetCode = true) = 0;
+    static std::unique_ptr<Message> deserialize(unsigned char *raw, size_t len, const std::string& key = DEFAULT_KEY, bool noRetCode = false);
 
 protected:
     static std::string encrypt(const std::string& plain, const std::string& key) {
