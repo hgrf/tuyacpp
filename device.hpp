@@ -18,7 +18,7 @@ using ordered_json = nlohmann::ordered_json;
 
 namespace tuya {
 
-class Device {
+class Device : public Loop::Handler {
     typedef std::function<void(void)> EventCallback_t;
 
     enum Command {
@@ -27,7 +27,7 @@ class Device {
 
 public:
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
-        mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop), mLoopHandler(*this, key)
+        Loop::Handler(key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop)
     {
         mSocketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (mSocketFd < 0) {
@@ -47,7 +47,7 @@ public:
 
         std::cout << "[DEVICE] Connected to " << ip << ": " << (const std::string) *this << std::endl;
 
-        mLoop.attach(mSocketFd, &mLoopHandler);
+        mLoop.attach(mSocketFd, this);
         sendCommand(DP_QUERY);
     }
 
@@ -74,6 +74,26 @@ public:
             cb();
     }
 
+    virtual int handle(int fd, Loop::Event e, bool verbose) override {
+        (void) verbose;
+        int ret = Loop::Handler::handle(fd, e, false);
+        if (ret < 0)
+            return ret;
+
+        eventCallback(Loop::Event::Type(e));
+
+        switch(Loop::Event::Type(e)) {
+        case Loop::Event::READ:
+            std::cout << "[DEVICE] new message from " << mIp << ": " << static_cast<std::string>(*mMsg) << std::endl;
+            break;
+        case Loop::Event::CLOSING:
+            std::cout << "[DEVICE] " << mIp << " disconnected" << std::endl;
+            break;
+        }
+
+        return ret;
+    }
+
     ~Device() {
         mLoop.detach(mSocketFd);
         close(mSocketFd);
@@ -89,7 +109,7 @@ public:
             return -1;
         }
 
-        std::cout << "[DEVICE] Sent " << ret << " bytes to " << ip() << std::endl;
+        std::cout << "[DEVICE] Sent " << ret << " bytes to " << mIp << std::endl;
 
         return 0;
     }
@@ -131,41 +151,12 @@ public:
     }
 
 private:
-    class LoopHandler : public Loop::Handler {
-    public:
-        LoopHandler(Device& dev, const std::string& key) : Loop::Handler(key), mDevice(dev) {}
-
-        virtual int handle(int fd, Loop::Event e, bool verbose) override {
-            (void) verbose;
-            int ret = Loop::Handler::handle(fd, e, false);
-            if (ret < 0)
-                return ret;
-
-            mDevice.eventCallback(Loop::Event::Type(e));
-
-            switch(Loop::Event::Type(e)) {
-            case Loop::Event::READ:
-                std::cout << "[DEVICE] new message from " << mDevice.ip() << ": " << static_cast<std::string>(*mMsg) << std::endl;
-                break;
-            case Loop::Event::CLOSING:
-                std::cout << "[DEVICE] " << mDevice.ip() << " disconnected" << std::endl;
-                break;
-            }
-
-            return ret;
-        }
-
-    private:
-        Device& mDevice;
-    };
-
     int mSocketFd;
     std::string mIp;
     std::string mGwId;
     std::string mDevId;
     std::string mLocalKey;
     Loop& mLoop;
-    LoopHandler mLoopHandler;
     std::map<Loop::Event::Type, std::list<EventCallback_t>> mEventCallbacks;
     static ordered_json mDevices;
 };
