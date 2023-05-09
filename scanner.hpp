@@ -61,18 +61,18 @@ public:
             const std::string ip = mMsg->data()["ip"];
 
             /* ignore devices that are already registered */
-            if (mDevices2.count(ip))
+            if (mConnectedDevices.count(ip))
                 break;
 
             /* register new device */
-            mDevices2[ip] = std::make_unique<Device>(mLoop, ip);
-            auto& dev = *mDevices2.at(ip);
+            mConnectedDevices[ip] = std::make_unique<Device>(mLoop, ip);
+            auto& dev = *mConnectedDevices.at(ip);
 
             /* register event callback for closing socket */
             dev.registerEventCallback(Loop::Event::CLOSING, [this, &dev]() {
                 std::cout << "[SCANNER] device " << dev.ip() << " disconnected" << std::endl;
                 /* cannot erase device while in its callback, need to do it asynchronously */
-                mEraseList.push_back(dev.ip());
+                mDisconnectedList.push_back(dev.ip());
             });
 
             std::cout << "[SCANNER] new device discovered: " << static_cast<std::string>(dev) << std::endl;
@@ -87,9 +87,9 @@ public:
     }
 
     virtual int heartBeat() override {
-        for (const auto& ip : mEraseList)
-            mDevices2.erase(ip);
-        mEraseList.clear();
+        for (const auto& ip : mDisconnectedList)
+            mConnectedDevices.erase(ip);
+        mDisconnectedList.clear();
     }
 
 private:
@@ -97,8 +97,8 @@ private:
     int mSocketFd;
     ordered_json mDevices;
 
-    std::map<std::string, std::unique_ptr<Device>> mDevices2;
-    std::list<std::string> mEraseList;
+    std::map<std::string, std::unique_ptr<Device>> mConnectedDevices;
+    std::list<std::string> mDisconnectedList;
 };
 
 } // namespace tuya
