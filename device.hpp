@@ -2,7 +2,6 @@
 
 #include <fstream>
 #include <functional>
-#include <iostream>
 #include <map>
 #include <unordered_map>
 #include <string>
@@ -56,12 +55,12 @@ public:
     }
 
     virtual int handleRead(Loop::Event e, const std::string& ip, const ordered_json& data) override {
-        std::cout << "[DEVICE] new message from " << ip << ": " << data << std::endl;
+        e.log("DEVICE") << "new message from " << ip << ": " << data;
         return 0;
     }
 
     virtual int handleClose(Loop::Event e) override {
-        std::cout << "[DEVICE] " << mIp << " disconnected" << std::endl;
+        e.log("DEVICE") << mIp << " disconnected";
         return 0;
     }
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <fstream>
-#include <iostream>
 #include <arpa/inet.h>
 
 #include "device.hpp"
@@ -11,6 +10,8 @@
 namespace tuya {
 
 class Scanner : public Loop::Handler {
+    const std::string TAG = "SCANNER";
+
 public:
     Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : mLoop(loop) {
         int ret;
@@ -63,22 +64,19 @@ public:
 
         /* register event callback for closing socket */
         dev.registerEventCallback(Loop::Event::CLOSING, [this, ip](Loop::Event e) {
-            if (e.verbose)
-                std::cout << "[SCANNER] device " << ip << " disconnected" << std::endl;
+            e.log(TAG) << "device " << ip << " disconnected";
             /* cannot erase device while in its callback, need to do it asynchronously */
             mDisconnectedList.push_back(ip);
             return 0;
         });
 
-        if (e.verbose)
-            std::cout << "[SCANNER] new device discovered: " << static_cast<std::string>(dev) << std::endl;
+        e.log(TAG) << "new device discovered: " << static_cast<std::string>(dev);
 
         return 0;
     }
 
     virtual int handleClose(Loop::Event e) override {
-        if (e.verbose)
-            std::cout << "[SCANNER] scanner port is closing" << std::endl;
+        e.log(TAG) << "port is closing";
 
         return 0;
     }

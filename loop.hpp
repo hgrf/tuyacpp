@@ -13,6 +13,35 @@
 
 #include "protocol/message.hpp"
 
+class LogStream : public std::ostream {
+public:
+    const std::string tag;
+
+    LogStream(const std::string& t = "") : std::ostream(), tag(t) {}
+
+    static LogStream& get(const std::string& t) {
+        static LogStream nullstream;
+        if (!t.size())
+            return nullstream;
+
+        auto it = mLogStreams.find(t);
+        if (it != mLogStreams.end())
+            return it->second;
+
+        auto itNew = mLogStreams.emplace(t, t).first;
+            return itNew->second;
+    }
+
+    template <typename T>
+    std::ostream& operator<<(T const &t) { return tag.size() ? *this : std::cout << "[" << tag << "] " << t << std::endl; }
+    std::ostream& operator<<(std::ostream &) { return *this; }
+
+private:
+    static std::map<std::string, LogStream> mLogStreams;
+};
+
+std::map<std::string, LogStream> LogStream::mLogStreams = {};
+
 namespace tuya {
 
 class Loop {
@@ -29,9 +58,8 @@ public:
         };
         const int fd;
         const Type type;
-        const bool verbose;
 
-        Event(int f, Type t, bool v) : fd(f), type(t), verbose(v) {}
+        Event(int f, Type t, bool v) : fd(f), type(t), mVerbose(v) {}
 
         const std::string& typeStr() const {
             static const std::map<Type, std::string> map = {
@@ -48,11 +76,23 @@ public:
         operator std::string() const {
             return "Event { fd: " + std::to_string(fd) + ", type: " + typeStr() + " }";
         }
-    };
 
+        LogStream& log(const std::string& tag) {
+            if (!mVerbose)
+                return LogStream::get("");
+            LogStream& logstream = LogStream::get(tag);
+            logstream << "[ fd=" << fd << " type=" << typeStr() << "] ";
+            return logstream;
+        }
+
+    private:
+        static std::map<std::string, LogStream> mLogStreams;
+        bool mVerbose;
+    };
 
     class Handler {
         static const size_t BUFFER_SIZE = 1024;
+        const std::string TAG = "HANDLER";
 
     public:
         Handler(const std::string& key = DEFAULT_KEY) : mKey(key) {
@@ -92,8 +132,7 @@ public:
 
         int handle(Event e) {
             int ret = 0;
-            if (e.verbose)
-                std::cout << "[HANDLER] Handling " << std::string(e) << std::endl;
+            e.log(TAG) << "Handling " << std::string(e);
 
             const auto& it = mEventCallbacks.find(e.type);
             if (it == mEventCallbacks.end())
@@ -111,15 +150,12 @@ public:
         }
 
         virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
-            if (e.verbose)
-                std::cout << "[HANDLER] received message from " << ip << ": " << data << std::endl;
+            e.log(TAG) << "received message from " << ip << ": " << data;
             return 0;
         }
 
         virtual int handleClose(Event e) {
-            if (e.verbose)
-                std::cout << "[HANDLER] socket is closing" << std::endl;
-
+            e.log(TAG) << "socket is closing";
             return 0;
         }
 
