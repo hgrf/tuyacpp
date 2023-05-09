@@ -18,45 +18,36 @@ namespace tuya {
 class Loop {
 public:
     class Event;
-    class Handler;
-    typedef std::function<int(int, Loop::Event, bool)> EventCallback_t;
+    typedef std::function<int(Loop::Event)> EventCallback_t;
 
     class Event {
     public:
         enum Type : uint8_t {
+            INVALID,
             READ,
             CLOSING,
         };
+        const int fd;
+        const Type type;
+        const bool verbose;
 
-        Event(int fd, Type t) : mFd(fd), mType(t) {}
-
-        const int& fd() const {
-            return mFd;
-        }
-
-        const Type& type() const {
-            return mType;
-        }
+        Event(int f, Type t, bool v) : fd(f), type(t), verbose(v) {}
 
         const std::string& typeStr() const {
-            static const std::string invalidStr = "INVALID";
             static const std::map<Type, std::string> map = {
+                {INVALID, "INVALID"},
                 {READ, "READ"},
                 {CLOSING, "CLOSING"}
             };
-            const auto& it = map.find(mType);
+            const auto& it = map.find(type);
             if (it == map.end())
-                return invalidStr;
+                return map.at(INVALID);
             return it->second;
         }
 
         operator std::string() const {
-            return "Event { fd: " + std::to_string(mFd) + ", type: " + typeStr() + "}";
+            return "Event { fd: " + std::to_string(fd) + ", type: " + typeStr() + " }";
         }
-
-    private:
-        int mFd;
-        Type mType;
     };
 
 
@@ -66,29 +57,71 @@ public:
     public:
         Handler(const std::string& key = DEFAULT_KEY) : mKey(key) {
             mBuffer.resize(BUFFER_SIZE);
+
+            registerEventCallback(Event::READ, [this](Event e) {
+                struct sockaddr_in addr;
+                unsigned slen=sizeof(sockaddr);
+                int ret = recvfrom(e.fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
+                if (ret <= 0)
+                    return -EINVAL;
+
+                char addr_str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
+
+                mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
+                if (e.verbose)
+                    std::cout << "[HANDLER] received " << ret  << " bytes from " << addr_str << ": " << mMsg->data() << std::endl;
+
+                return handleRead(e);
+            });
+
+            registerEventCallback(Event::CLOSING, [this](Event e) {
+                if (e.verbose)
+                    std::cout << "socket is closing" << std::endl;
+
+                return handleClose(e);
+            });
         }
 
-        int handle(Event e, bool verbose = true) {
-            if (verbose)
-                std::cout << "Handling " << std::string(e) << std::endl;
+        void registerEventCallback(Loop::Event::Type t, EventCallback_t cb) {
+            const auto& it = mEventCallbacks.find(t);
+            if (it == mEventCallbacks.end())
+                mEventCallbacks[t] = {cb};
+            else
+                /* event callbacks are processed in the inverse order of their
+                 * registering order, so that - in particular for the CLOSING event
+                 * - the socket is closed after all other callbacks have been processed
+                 */
+                mEventCallbacks.at(t).push_front(cb);
+        }
 
-            switch(e.type()) {
-            case Event::READ:
-                return _handleRead(e, verbose);
-            case Event::CLOSING:
-                return _handleClose(e, verbose);
-            default:
-                return -EINVAL;
+        int handle(Event e) {
+            int ret = 0;
+            if (e.verbose)
+                std::cout << "[HANDLER] Handling " << std::string(e) << std::endl;
+
+            const auto& it = mEventCallbacks.find(e.type);
+            if (it == mEventCallbacks.end())
+                return 0;
+
+            for (const auto &cb : it->second) {
+                ret = cb(e);
+                if (ret < 0) {
+                    std::cerr << "cb() failed: " << ret << std::endl;
+                    return ret;
+                }
             }
-        }
 
-        virtual int handleRead(Event e, bool verbose) {
-            (void) e, (void) verbose;
             return 0;
         }
 
-        virtual int handleClose(Event e, bool verbose) {
-            (void) e, (void) verbose;
+        virtual int handleRead(Event e) {
+            (void) e;
+            return 0;
+        }
+
+        virtual int handleClose(Event e) {
+            (void) e;
             return 0;
         }
 
@@ -96,33 +129,9 @@ public:
             return 0;
         }
 
-    private:
-        int _handleClose(Event e, bool verbose) {
-            if (verbose)
-                std::cout << "socket is closing" << std::endl;
-
-            return handleClose(e, verbose);
-        }
-
-        int _handleRead(Event e, bool verbose) {
-            struct sockaddr_in addr;
-            unsigned slen=sizeof(sockaddr);
-            int ret = recvfrom(e.fd(), const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
-            if (ret <= 0)
-                return -EINVAL;
-
-            char addr_str[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
-
-            mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
-            if (verbose)
-                std::cout << "received " << ret  << " bytes from " << addr_str << ": " << std::string(*mMsg) << std::endl;
-
-            return handleRead(e, verbose);
-        }
-
     protected:
         std::unique_ptr<Message> mMsg;
+        std::map<Loop::Event::Type, std::list<EventCallback_t>> mEventCallbacks;
 
     private:
         std::string mBuffer;
@@ -147,7 +156,7 @@ public:
         return 0;
     }
 
-    int loop(unsigned int timeoutMs = 1000) {
+    int loop(unsigned int timeoutMs = 1000, bool verbose = true) {
         fd_set readFds;
         FD_ZERO(&readFds);
         int maxFd = 0;
@@ -175,9 +184,9 @@ public:
             for (auto &it : mHandlers) {
                 const auto &fd = it.first;
                 if (FD_ISSET(fd, &readFds)) {
-                    int handleRet = it.second->handle(Event(fd, Event::READ));
+                    int handleRet = it.second->handle(Event(fd, Event::READ, verbose));
                     if (handleRet < 0) {
-                        it.second->handle(Event(fd, Event::CLOSING));
+                        it.second->handle(Event(fd, Event::CLOSING, verbose));
                         removeList.push_back(fd);
                     }
                     ret--;

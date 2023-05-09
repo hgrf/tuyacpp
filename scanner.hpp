@@ -50,8 +50,7 @@ public:
         close(mSocketFd);
     }
 
-    virtual int handleRead(Loop::Event e, bool verbose) override {
-        (void) e, (void) verbose;
+    virtual int handleRead(Loop::Event e) override {
         const std::string ip = mMsg->data()["ip"];
 
         /* ignore devices that are already registered */
@@ -63,20 +62,23 @@ public:
         auto& dev = *mConnectedDevices.at(ip);
 
         /* register event callback for closing socket */
-        dev.registerEventCallback(Loop::Event::CLOSING, [this, &dev]() {
-            std::cout << "[SCANNER] device " << dev.ip() << " disconnected" << std::endl;
+        dev.registerEventCallback(Loop::Event::CLOSING, [this, &dev](Loop::Event e) {
+            if (e.verbose)
+                std::cout << "[SCANNER] device " << dev.ip() << " disconnected" << std::endl;
             /* cannot erase device while in its callback, need to do it asynchronously */
             mDisconnectedList.push_back(dev.ip());
+            return 0;
         });
 
-        std::cout << "[SCANNER] new device discovered: " << static_cast<std::string>(dev) << std::endl;
+        if (e.verbose)
+            std::cout << "[SCANNER] new device discovered: " << static_cast<std::string>(dev) << std::endl;
 
         return 0;
     }
 
-    virtual int handleClose(Loop::Event e, bool verbose) override {
-        (void) e, (void) verbose;
-        std::cout << "[SCANNER] scanner port is closing" << std::endl;
+    virtual int handleClose(Loop::Event e) override {
+        if (e.verbose)
+            std::cout << "[SCANNER] scanner port is closing" << std::endl;
 
         return 0;
     }

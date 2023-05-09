@@ -19,8 +19,6 @@ using ordered_json = nlohmann::ordered_json;
 namespace tuya {
 
 class Device : public Loop::Handler {
-    typedef std::function<void(void)> EventCallback_t;
-
     enum Command {
         DP_QUERY        = 0x0a,  //  10 // FRM_QUERY_STAT      // UPDATE_START_CMD - get data points
     };
@@ -57,31 +55,12 @@ public:
     {
     }
 
-    void registerEventCallback(Loop::Event::Type t, EventCallback_t cb) {
-        const auto& it = mEventCallbacks.find(t);
-        if (it == mEventCallbacks.end())
-            mEventCallbacks[t] = {cb};
-        else
-            mEventCallbacks.at(t).push_back(cb);
-    }
-
-    void eventCallback(Loop::Event::Type t) {
-        const auto& it = mEventCallbacks.find(t);
-        if (it == mEventCallbacks.end())
-            return;
-
-        for (const auto &cb : it->second)
-            cb();
-    }
-
-    virtual int handleRead(Loop::Event e, bool verbose) override {
-        eventCallback(e.type());
+    virtual int handleRead(Loop::Event e) override {
         std::cout << "[DEVICE] new message from " << mIp << ": " << static_cast<std::string>(*mMsg) << std::endl;
         return 0;
     }
 
-    virtual int handleClose(Loop::Event e, bool verbose) override {
-        eventCallback(e.type());
+    virtual int handleClose(Loop::Event e) override {
         std::cout << "[DEVICE] " << mIp << " disconnected" << std::endl;
         return 0;
     }
@@ -149,7 +128,6 @@ private:
     std::string mDevId;
     std::string mLocalKey;
     Loop& mLoop;
-    std::map<Loop::Event::Type, std::list<EventCallback_t>> mEventCallbacks;
     static ordered_json mDevices;
 };
 
