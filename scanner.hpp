@@ -50,8 +50,8 @@ public:
         close(mSocketFd);
     }
 
-    virtual int handleRead(Loop::Event e) override {
-        const std::string ip = mMsg->data()["ip"];
+    virtual int handleRead(Loop::Event e, const std::string &ip, const ordered_json& data) override {
+        (void) data;
 
         /* ignore devices that are already registered */
         if (mConnectedDevices.count(ip))
@@ -62,11 +62,11 @@ public:
         auto& dev = *mConnectedDevices.at(ip);
 
         /* register event callback for closing socket */
-        dev.registerEventCallback(Loop::Event::CLOSING, [this, &dev](Loop::Event e) {
+        dev.registerEventCallback(Loop::Event::CLOSING, [this, ip](Loop::Event e) {
             if (e.verbose)
-                std::cout << "[SCANNER] device " << dev.ip() << " disconnected" << std::endl;
+                std::cout << "[SCANNER] device " << ip << " disconnected" << std::endl;
             /* cannot erase device while in its callback, need to do it asynchronously */
-            mDisconnectedList.push_back(dev.ip());
+            mDisconnectedList.push_back(ip);
             return 0;
         });
 

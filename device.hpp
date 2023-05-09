@@ -55,8 +55,8 @@ public:
     {
     }
 
-    virtual int handleRead(Loop::Event e) override {
-        std::cout << "[DEVICE] new message from " << mIp << ": " << static_cast<std::string>(*mMsg) << std::endl;
+    virtual int handleRead(Loop::Event e, const std::string& ip, const ordered_json& data) override {
+        std::cout << "[DEVICE] new message from " << ip << ": " << data << std::endl;
         return 0;
     }
 

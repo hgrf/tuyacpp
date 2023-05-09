@@ -69,16 +69,11 @@ public:
                 inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
 
                 mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
-                if (e.verbose)
-                    std::cout << "[HANDLER] received " << ret  << " bytes from " << addr_str << ": " << mMsg->data() << std::endl;
 
-                return handleRead(e);
+                return handleRead(e, addr_str, mMsg->data());
             });
 
             registerEventCallback(Event::CLOSING, [this](Event e) {
-                if (e.verbose)
-                    std::cout << "socket is closing" << std::endl;
-
                 return handleClose(e);
             });
         }
@@ -107,7 +102,7 @@ public:
             for (const auto &cb : it->second) {
                 ret = cb(e);
                 if (ret < 0) {
-                    std::cerr << "cb() failed: " << ret << std::endl;
+                    std::cerr << "[HANDLER] cb() failed: " << ret << std::endl;
                     return ret;
                 }
             }
@@ -115,13 +110,16 @@ public:
             return 0;
         }
 
-        virtual int handleRead(Event e) {
-            (void) e;
+        virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
+            if (e.verbose)
+                std::cout << "[HANDLER] received message from " << ip << ": " << data << std::endl;
             return 0;
         }
 
         virtual int handleClose(Event e) {
-            (void) e;
+            if (e.verbose)
+                std::cout << "[HANDLER] socket is closing" << std::endl;
+
             return 0;
         }
 
