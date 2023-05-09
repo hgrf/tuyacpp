@@ -55,12 +55,12 @@ public:
     }
 
     virtual int handleRead(Loop::Event e, const std::string& ip, const ordered_json& data) override {
-        e.log("DEVICE") << "new message from " << ip << ": " << data;
+        EV_LOG(e) << "new message from " << ip << ": " << data << std::endl;
         return 0;
     }
 
     virtual int handleClose(Loop::Event e) override {
-        e.log("DEVICE") << mIp << " disconnected";
+        EV_LOG(e) << mIp << " disconnected" << std::endl;
         return 0;
     }
 

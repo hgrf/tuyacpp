@@ -15,31 +15,39 @@
 
 class LogStream : public std::ostream {
 public:
-    const std::string tag;
+    LogStream(const std::string& tag) : mTag(tag) {}
 
-    LogStream(const std::string& t = "") : std::ostream(), tag(t) {}
+    static LogStream& make(const std::string& t) {
+        auto result = mLogStreams.emplace(t, t);
+        return result.second ? result.first->second : mNullStream;
+    }
 
     static LogStream& get(const std::string& t) {
-        static LogStream nullstream;
         if (!t.size())
-            return nullstream;
+            return mNullStream;
 
         auto it = mLogStreams.find(t);
-        if (it != mLogStreams.end())
-            return it->second;
-
-        auto itNew = mLogStreams.emplace(t, t).first;
-            return itNew->second;
+        LogStream& s = (it != mLogStreams.end()) ? it->second : make(t);
+        s << "[" << t << "] ";
+        return s;
     }
 
     template <typename T>
-    std::ostream& operator<<(T const &t) { return tag.size() ? *this : std::cout << "[" << tag << "] " << t << std::endl; }
-    std::ostream& operator<<(std::ostream &) { return *this; }
+    std::ostream& operator<<(T const &t) {
+        return !mTag.size() ? *this : std::cout << t;
+    }
+
+    std::ostream& operator<<(std::ostream& s) {
+        return s;
+    }
 
 private:
+    std::string mTag;
+    static LogStream mNullStream;
     static std::map<std::string, LogStream> mLogStreams;
 };
 
+LogStream LogStream::mNullStream("");
 std::map<std::string, LogStream> LogStream::mLogStreams = {};
 
 namespace tuya {
@@ -74,20 +82,16 @@ public:
         }
 
         operator std::string() const {
-            return "Event { fd: " + std::to_string(fd) + ", type: " + typeStr() + " }";
+            return "Event {fd=" + std::to_string(fd) + ", type=" + typeStr() + "}";
         }
 
-        LogStream& log(const std::string& tag) {
-            if (!mVerbose)
-                return LogStream::get("");
-            LogStream& logstream = LogStream::get(tag);
-            logstream << "[ fd=" << fd << " type=" << typeStr() << "] ";
-            return logstream;
+        std::ostream& log(const std::string& tag) {
+            return LogStream::get(mVerbose ? tag : "") << "[EV " << typeStr() << "(" << fd << ")] ";
         }
 
     private:
         static std::map<std::string, LogStream> mLogStreams;
-        bool mVerbose;
+        const bool mVerbose;
     };
 
     class Handler {
@@ -95,9 +99,7 @@ public:
         const std::string TAG = "HANDLER";
 
     public:
-        Handler(const std::string& key = DEFAULT_KEY) : mKey(key) {
-            mBuffer.resize(BUFFER_SIZE);
-
+        Handler(const std::string& key = DEFAULT_KEY) : mBuffer("\0", BUFFER_SIZE), mKey(key) {
             registerEventCallback(Event::READ, [this](Event e) {
                 struct sockaddr_in addr;
                 unsigned slen=sizeof(sockaddr);
@@ -132,7 +134,7 @@ public:
 
         int handle(Event e) {
             int ret = 0;
-            e.log(TAG) << "Handling " << std::string(e);
+            EV_LOG(e) << "handling " << std::string(e) << std::endl;;
 
             const auto& it = mEventCallbacks.find(e.type);
             if (it == mEventCallbacks.end())
@@ -150,12 +152,12 @@ public:
         }
 
         virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
-            e.log(TAG) << "received message from " << ip << ": " << data;
+            EV_LOG(e) << "received message from " << ip << ": " << data << std::endl;
             return 0;
         }
 
         virtual int handleClose(Event e) {
-            e.log(TAG) << "socket is closing";
+            EV_LOG(e) << "socket is closing" << std::endl;
             return 0;
         }
 
@@ -164,6 +166,9 @@ public:
         }
 
     protected:
+        std::ostream& EV_LOG(Event &e) {
+            return e.log(TAG);
+        }
         std::unique_ptr<Message> mMsg;
         std::map<Loop::Event::Type, std::list<EventCallback_t>> mEventCallbacks;
 

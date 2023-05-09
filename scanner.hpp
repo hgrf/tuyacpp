@@ -64,19 +64,19 @@ public:
 
         /* register event callback for closing socket */
         dev.registerEventCallback(Loop::Event::CLOSING, [this, ip](Loop::Event e) {
-            e.log(TAG) << "device " << ip << " disconnected";
+            EV_LOG(e) << "device " << ip << " disconnected" << std::endl;
             /* cannot erase device while in its callback, need to do it asynchronously */
             mDisconnectedList.push_back(ip);
             return 0;
         });
 
-        e.log(TAG) << "new device discovered: " << static_cast<std::string>(dev);
+        EV_LOG(e) << "new device discovered: " << static_cast<std::string>(dev) << std::endl;
 
         return 0;
     }
 
     virtual int handleClose(Loop::Event e) override {
-        e.log(TAG) << "port is closing";
+        EV_LOG(e) << "port is closing" << std::endl;
 
         return 0;
     }
