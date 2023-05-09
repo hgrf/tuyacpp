@@ -50,40 +50,33 @@ public:
         close(mSocketFd);
     }
 
-    virtual int handle(int fd, Loop::Event e, bool verbose) override {
-        (void) verbose;
-        int ret = Loop::Handler::handle(fd, e, false);
-        if (ret < 0)
-            return ret;
+    virtual int handleRead(int fd, Loop::Event e, bool verbose) override {
+        const std::string ip = mMsg->data()["ip"];
 
-        switch(Loop::Event::Type(e)) {
-        case Loop::Event::READ: {
-            const std::string ip = mMsg->data()["ip"];
+        /* ignore devices that are already registered */
+        if (mConnectedDevices.count(ip))
+            return 0;
 
-            /* ignore devices that are already registered */
-            if (mConnectedDevices.count(ip))
-                break;
+        /* register new device */
+        mConnectedDevices[ip] = std::make_unique<Device>(mLoop, ip);
+        auto& dev = *mConnectedDevices.at(ip);
 
-            /* register new device */
-            mConnectedDevices[ip] = std::make_unique<Device>(mLoop, ip);
-            auto& dev = *mConnectedDevices.at(ip);
+        /* register event callback for closing socket */
+        dev.registerEventCallback(Loop::Event::CLOSING, [this, &dev]() {
+            std::cout << "[SCANNER] device " << dev.ip() << " disconnected" << std::endl;
+            /* cannot erase device while in its callback, need to do it asynchronously */
+            mDisconnectedList.push_back(dev.ip());
+        });
 
-            /* register event callback for closing socket */
-            dev.registerEventCallback(Loop::Event::CLOSING, [this, &dev]() {
-                std::cout << "[SCANNER] device " << dev.ip() << " disconnected" << std::endl;
-                /* cannot erase device while in its callback, need to do it asynchronously */
-                mDisconnectedList.push_back(dev.ip());
-            });
+        std::cout << "[SCANNER] new device discovered: " << static_cast<std::string>(dev) << std::endl;
 
-            std::cout << "[SCANNER] new device discovered: " << static_cast<std::string>(dev) << std::endl;
-            break;
-        }
-        case Loop::Event::CLOSING:
-            std::cout << "[SCANNER] scanner port is closing" << std::endl;
-            break;
-        }
+        return 0;
+    }
 
-        return ret;
+    virtual int handleClose(int fd, Loop::Event e, bool verbose) override {
+        std::cout << "[SCANNER] scanner port is closing" << std::endl;
+
+        return 0;
     }
 
     virtual int heartBeat() override {

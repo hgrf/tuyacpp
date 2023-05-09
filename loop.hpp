@@ -51,6 +51,14 @@ public:
             mBuffer.resize(BUFFER_SIZE);
         }
 
+        virtual int handleRead(int fd, Event e, bool verbose) {
+            return 0;
+        }
+
+        virtual int handleClose(int fd, Event e, bool verbose) {
+            return 0;
+        }
+
         virtual int handle(int fd, Event e, bool verbose = true) {
             int ret = 0;
 
@@ -75,11 +83,15 @@ public:
                 mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
                 if (verbose)
                     std::cout << "received " << ret  << " bytes from " << addr_str << ": " << std::string(*mMsg) << std::endl;
+
+                ret = handleRead(fd, e, verbose);
                 break;
             }
             case Event::CLOSING:
                 if (verbose)
                     std::cout << "socket is closing" << std::endl;
+
+                ret = handleClose(fd, e, verbose);
                 break;
             default:
                 std::cerr << "unimplemented event: " << (int) Event::Type(e) << std::endl;
