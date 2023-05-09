@@ -50,7 +50,8 @@ public:
         close(mSocketFd);
     }
 
-    virtual int handleRead(int fd, Loop::Event e, bool verbose) override {
+    virtual int handleRead(Loop::Event e, bool verbose) override {
+        (void) e, (void) verbose;
         const std::string ip = mMsg->data()["ip"];
 
         /* ignore devices that are already registered */
@@ -73,7 +74,8 @@ public:
         return 0;
     }
 
-    virtual int handleClose(int fd, Loop::Event e, bool verbose) override {
+    virtual int handleClose(Loop::Event e, bool verbose) override {
+        (void) e, (void) verbose;
         std::cout << "[SCANNER] scanner port is closing" << std::endl;
 
         return 0;
@@ -83,6 +85,8 @@ public:
         for (const auto& ip : mDisconnectedList)
             mConnectedDevices.erase(ip);
         mDisconnectedList.clear();
+
+        return 0;
     }
 
 private:

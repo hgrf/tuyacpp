@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>
@@ -16,6 +17,10 @@ namespace tuya {
 
 class Loop {
 public:
+    class Event;
+    class Handler;
+    typedef std::function<int(int, Loop::Event, bool)> EventCallback_t;
+
     class Event {
     public:
         enum Type : uint8_t {
@@ -23,22 +28,34 @@ public:
             CLOSING,
         };
 
-        Event(Type t) : mType(t) {}
+        Event(int fd, Type t) : mFd(fd), mType(t) {}
 
-        operator Type() const {
+        const int& fd() const {
+            return mFd;
+        }
+
+        const Type& type() const {
             return mType;
         }
 
+        const std::string& typeStr() const {
+            static const std::string invalidStr = "INVALID";
+            static const std::map<Type, std::string> map = {
+                {READ, "READ"},
+                {CLOSING, "CLOSING"}
+            };
+            const auto& it = map.find(mType);
+            if (it == map.end())
+                return invalidStr;
+            return it->second;
+        }
+
         operator std::string() const {
-            switch(mType) {
-            case READ:
-                return "READ";
-            default:
-                return "INVALID";
-            }
+            return "Event { fd: " + std::to_string(mFd) + ", type: " + typeStr() + "}";
         }
 
     private:
+        int mFd;
         Type mType;
     };
 
@@ -51,58 +68,57 @@ public:
             mBuffer.resize(BUFFER_SIZE);
         }
 
-        virtual int handleRead(int fd, Event e, bool verbose) {
-            return 0;
-        }
-
-        virtual int handleClose(int fd, Event e, bool verbose) {
-            return 0;
-        }
-
-        virtual int handle(int fd, Event e, bool verbose = true) {
-            int ret = 0;
-
+        int handle(Event e, bool verbose = true) {
             if (verbose)
-                std::cout << "Handling event from fd " << fd << ": " << std::string(e) << std::endl;
+                std::cout << "Handling " << std::string(e) << std::endl;
 
-            switch(Event::Type(e))
-            {
-            case Event::READ: {
-                struct sockaddr_in addr;
-                unsigned slen=sizeof(sockaddr);
-                ret = recvfrom(fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
-                if (ret <= 0) {
-                    if (ret == 0)
-                        ret = -EINVAL;
-                    break;
-                }
-
-                char addr_str[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
-
-                mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
-                if (verbose)
-                    std::cout << "received " << ret  << " bytes from " << addr_str << ": " << std::string(*mMsg) << std::endl;
-
-                ret = handleRead(fd, e, verbose);
-                break;
-            }
+            switch(e.type()) {
+            case Event::READ:
+                return _handleRead(e, verbose);
             case Event::CLOSING:
-                if (verbose)
-                    std::cout << "socket is closing" << std::endl;
-
-                ret = handleClose(fd, e, verbose);
-                break;
+                return _handleClose(e, verbose);
             default:
-                std::cerr << "unimplemented event: " << (int) Event::Type(e) << std::endl;
-                ret = -EINVAL;
+                return -EINVAL;
             }
+        }
 
-            return ret;
+        virtual int handleRead(Event e, bool verbose) {
+            (void) e, (void) verbose;
+            return 0;
+        }
+
+        virtual int handleClose(Event e, bool verbose) {
+            (void) e, (void) verbose;
+            return 0;
         }
 
         virtual int heartBeat() {
+            return 0;
+        }
 
+    private:
+        int _handleClose(Event e, bool verbose) {
+            if (verbose)
+                std::cout << "socket is closing" << std::endl;
+
+            return handleClose(e, verbose);
+        }
+
+        int _handleRead(Event e, bool verbose) {
+            struct sockaddr_in addr;
+            unsigned slen=sizeof(sockaddr);
+            int ret = recvfrom(e.fd(), const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
+            if (ret <= 0)
+                return -EINVAL;
+
+            char addr_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
+
+            mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
+            if (verbose)
+                std::cout << "received " << ret  << " bytes from " << addr_str << ": " << std::string(*mMsg) << std::endl;
+
+            return handleRead(e, verbose);
         }
 
     protected:
@@ -127,6 +143,8 @@ public:
             return -ENOENT;
 
         mHandlers.erase(fd);
+
+        return 0;
     }
 
     int loop(unsigned int timeoutMs = 1000) {
@@ -155,11 +173,12 @@ public:
         } else {
             std::list<int> removeList;
             for (auto &it : mHandlers) {
-                if (FD_ISSET(it.first, &readFds)) {
-                    int handleRet = it.second->handle(it.first, Event::READ);
+                const auto &fd = it.first;
+                if (FD_ISSET(fd, &readFds)) {
+                    int handleRet = it.second->handle(Event(fd, Event::READ));
                     if (handleRet < 0) {
-                        it.second->handle(it.first, Event::CLOSING);
-                        removeList.push_back(it.first);
+                        it.second->handle(Event(fd, Event::CLOSING));
+                        removeList.push_back(fd);
                     }
                     ret--;
                 }
@@ -172,6 +191,8 @@ public:
                 mHandlers.erase(fd);
             }
         }
+
+        return 0;
     }
 
 private:

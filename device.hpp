@@ -74,24 +74,16 @@ public:
             cb();
     }
 
-    virtual int handle(int fd, Loop::Event e, bool verbose) override {
-        (void) verbose;
-        int ret = Loop::Handler::handle(fd, e, false);
-        if (ret < 0)
-            return ret;
+    virtual int handleRead(Loop::Event e, bool verbose) override {
+        eventCallback(e.type());
+        std::cout << "[DEVICE] new message from " << mIp << ": " << static_cast<std::string>(*mMsg) << std::endl;
+        return 0;
+    }
 
-        eventCallback(Loop::Event::Type(e));
-
-        switch(Loop::Event::Type(e)) {
-        case Loop::Event::READ:
-            std::cout << "[DEVICE] new message from " << mIp << ": " << static_cast<std::string>(*mMsg) << std::endl;
-            break;
-        case Loop::Event::CLOSING:
-            std::cout << "[DEVICE] " << mIp << " disconnected" << std::endl;
-            break;
-        }
-
-        return ret;
+    virtual int handleClose(Loop::Event e, bool verbose) override {
+        eventCallback(e.type());
+        std::cout << "[DEVICE] " << mIp << " disconnected" << std::endl;
+        return 0;
     }
 
     ~Device() {
