@@ -10,9 +10,9 @@
 namespace tuya {
 
 class Scanner : public Loop::Handler {
-    const std::string TAG = "SCANNER";
-
 public:
+    virtual const std::string& TAG() override { static const std::string tag = "SCANNER"; return tag; };
+
     Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : mLoop(loop) {
         int ret;
 

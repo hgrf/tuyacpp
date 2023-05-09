@@ -57,9 +57,10 @@ public:
 
     class Handler {
         static const size_t BUFFER_SIZE = 1024;
-        const std::string TAG = "HANDLER";
 
     public:
+        virtual const std::string& TAG() { static const std::string tag = "HANDLER"; return tag; };
+
         Handler(const std::string& key = DEFAULT_KEY) : mBuffer("\0", BUFFER_SIZE), mKey(key) {
             registerEventCallback(Event::READ, [this](Event e) {
                 struct sockaddr_in addr;
@@ -128,7 +129,7 @@ public:
 
     protected:
         std::ostream& EV_LOG(Event &e) {
-            return e.log(TAG);
+            return e.log(TAG());
         }
         std::unique_ptr<Message> mMsg;
         std::map<Loop::Event::Type, std::list<EventCallback_t>> mEventCallbacks;

@@ -23,6 +23,8 @@ class Device : public Loop::Handler {
     };
 
 public:
+    virtual const std::string& TAG() override { static const std::string tag = "DEVICE"; return tag; };
+
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
         Loop::Handler(key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop)
     {
