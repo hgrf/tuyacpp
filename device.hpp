@@ -44,7 +44,7 @@ public:
             throw std::runtime_error("Failed to connect");
         }
 
-        std::cout << "[DEVICE] Connected to " << ip << ": " << (const std::string) *this << std::endl;
+        LOGI() << "connected to " << ip << ": " << (const std::string) *this << std::endl;
 
         mLoop.attach(mSocketFd, this);
         sendCommand(DP_QUERY);
@@ -57,12 +57,12 @@ public:
     }
 
     virtual int handleRead(Loop::Event e, const std::string& ip, const ordered_json& data) override {
-        EV_LOG(e) << "new message from " << ip << ": " << data << std::endl;
+        EV_LOGI(e) << "new message from " << ip << ": " << data << std::endl;
         return 0;
     }
 
     virtual int handleClose(Loop::Event e) override {
-        EV_LOG(e) << mIp << " disconnected" << std::endl;
+        EV_LOGI(e) << mIp << " disconnected" << std::endl;
         return 0;
     }
 
@@ -81,7 +81,7 @@ public:
             return -1;
         }
 
-        std::cout << "[DEVICE] Sent " << ret << " bytes to " << mIp << std::endl;
+        LOGI() << "sent " << ret << " bytes to " << mIp << std::endl;
 
         return 0;
     }
