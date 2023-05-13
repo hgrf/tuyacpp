@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "loop/loop.hpp"
+#include "loop/sockethandler.hpp"
 #include "protocol/protocol.hpp"
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
@@ -17,7 +18,7 @@ using ordered_json = nlohmann::ordered_json;
 
 namespace tuya {
 
-class Device : public Handler {
+class Device : public SocketHandler {
     enum Command {
         DP_QUERY        = 0x0a,  //  10 // FRM_QUERY_STAT      // UPDATE_START_CMD - get data points
     };
@@ -26,27 +27,9 @@ public:
     virtual const std::string& TAG() override { static const std::string tag = "DEVICE"; return tag; };
 
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
-        Handler(key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop)
+        SocketHandler(loop, ip, 6668, key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key)
     {
-        mSocketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (mSocketFd < 0) {
-            throw std::runtime_error("Failed to create socket");
-        }
-
-        struct sockaddr_in serv_addr;
-        serv_addr.sin_family = AF_INET;
-        serv_addr.sin_port = htons(6668);
-        if (inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr) <= 0) {
-            throw std::runtime_error("Invalid address");
-        }
-
-        if (connect(mSocketFd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-            throw std::runtime_error("Failed to connect");
-        }
-
         LOGI() << "connected to " << ip << ": " << (const std::string) *this << std::endl;
-
-        mLoop.attach(mSocketFd, this);
         sendCommand(DP_QUERY);
     }
 
@@ -64,11 +47,6 @@ public:
     virtual int handleClose(Event e) override {
         EV_LOGI(e) << mIp << " disconnected" << std::endl;
         return 0;
-    }
-
-    ~Device() {
-        mLoop.detach(mSocketFd);
-        close(mSocketFd);
     }
 
     int sendRaw(const std::string& message) {
@@ -123,12 +101,10 @@ public:
     }
 
 private:
-    int mSocketFd;
     std::string mIp;
     std::string mGwId;
     std::string mDevId;
     std::string mLocalKey;
-    Loop& mLoop;
     static ordered_json mDevices;
 };
 
