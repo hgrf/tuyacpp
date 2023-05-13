@@ -24,22 +24,19 @@ public:
 
     virtual int handleRead(Event e, const std::string &ip, const ordered_json& data) override {
         (void) data;
+        if (e.fd != mSocketFd)
+            return 0;
 
         /* ignore devices that are already registered */
-        if (mConnectedDevices.count(ip))
+        if (mConnectedDevices.count(e.fd))
             return 0;
 
         /* register new device */
-        mConnectedDevices[ip] = std::make_unique<Device>(mLoop, ip);
-        auto& dev = *mConnectedDevices.at(ip);
+        mConnectedDevices[e.fd] = std::make_unique<Device>(mLoop, ip);
+        auto& dev = *mConnectedDevices.at(e.fd);
 
         /* register event callback for closing socket */
-        dev.registerEventCallback(Event::CLOSING, [this, ip](Event e) {
-            EV_LOGI(e) << "device " << ip << " disconnected" << std::endl;
-            /* cannot erase device while in its callback, need to do it asynchronously */
-            mDisconnectedList.push_back(ip);
-            return 0;
-        });
+        mLoop.attach(dev.fd(), this);
 
         EV_LOGI(e) << "new device discovered: " << static_cast<std::string>(dev) << std::endl;
 
@@ -47,14 +44,20 @@ public:
     }
 
     virtual int handleClose(Event e) override {
-        EV_LOGI(e) << "port is closing" << std::endl;
-
+        if (e.fd == mSocketFd) {
+            EV_LOGI(e) << "port is closing" << std::endl;
+        } else {
+            /* cannot erase device while in its callback, need to do it asynchronously */
+            mDisconnectedList.push_back(e.fd);
+            EV_LOGI(e) << "device " << static_cast<std::string>(*mConnectedDevices[e.fd])
+                << " disconnected" << std::endl;
+        }
         return 0;
     }
 
     virtual int heartBeat() override {
-        for (const auto& ip : mDisconnectedList)
-            mConnectedDevices.erase(ip);
+        for (const auto& fd : mDisconnectedList)
+            mConnectedDevices.erase(fd);
         mDisconnectedList.clear();
 
         return 0;
@@ -63,8 +66,8 @@ public:
 private:
     ordered_json mDevices;
 
-    std::map<std::string, std::unique_ptr<Device>> mConnectedDevices;
-    std::list<std::string> mDisconnectedList;
+    std::map<int, std::unique_ptr<Device>> mConnectedDevices;
+    std::list<int> mDisconnectedList;
 };
 
 } // namespace tuya

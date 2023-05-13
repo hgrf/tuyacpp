@@ -58,6 +58,10 @@ public:
         close(mSocketFd);
     }
 
+    int fd() const { 
+        return mSocketFd;
+    }
+
 protected:
     Loop& mLoop;
     int mSocketFd;

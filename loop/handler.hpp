@@ -21,55 +21,43 @@ public:
     virtual const std::string& TAG() { static const std::string tag = "HANDLER"; return tag; };
 
     Handler(const std::string& key = DEFAULT_KEY) : mBuffer("\0", BUFFER_SIZE), mKey(key) {
-        registerEventCallback(Event::READ, [this](Event e) {
-            struct sockaddr_in addr;
-            unsigned slen=sizeof(sockaddr);
-            int ret = recvfrom(e.fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
-            if (ret <= 0)
-                return -EINVAL;
-
-            char addr_str[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
-
-            mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
-
-            return handleRead(e, addr_str, mMsg->data());
-        });
-
-        registerEventCallback(Event::CLOSING, [this](Event e) {
-            return handleClose(e);
-        });
-    }
-
-    void registerEventCallback(Event::Type t, EventCallback_t cb) {
-        const auto& it = mEventCallbacks.find(t);
-        if (it == mEventCallbacks.end())
-            mEventCallbacks[t] = {cb};
-        else
-            /* event callbacks are processed in the inverse order of their
-                * registering order, so that - in particular for the CLOSING event
-                * - the socket is closed after all other callbacks have been processed
-                */
-            mEventCallbacks.at(t).push_front(cb);
     }
 
     int handle(Event e) {
         int ret = 0;
         EV_LOGD(e) << "handling " << std::string(e) << std::endl;;
 
-        const auto& it = mEventCallbacks.find(e.type);
-        if (it == mEventCallbacks.end())
-            return 0;
-
-        for (const auto &cb : it->second) {
-            ret = cb(e);
-            if (ret < 0) {
-                EV_LOGW(e) << "cb() failed: " << ret << std::endl;
-                return ret;
-            }
+        switch (e.type)
+        {
+        case Event::READ:
+            ret = handleRead(e);
+            break;
+        case Event::CLOSING:
+            ret = handleClose(e);
+            break;
+        default:
+            break;
         }
 
-        return 0;
+        if (ret < 0)
+            EV_LOGW(e) << "cb() failed: " << ret << std::endl;
+
+        return ret;
+    }
+
+    int handleRead(Event e) {
+        struct sockaddr_in addr;
+        unsigned slen=sizeof(sockaddr);
+        int ret = recvfrom(e.fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
+        if (ret <= 0)
+            return -EINVAL;
+
+        char addr_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
+
+        mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
+
+        return handleRead(e, addr_str, mMsg->data());
     }
 
     virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
@@ -107,7 +95,6 @@ protected:
         return EV_LOG(e, LogStream::ERROR);
     }
     std::unique_ptr<Message> mMsg;
-    std::map<Event::Type, std::list<EventCallback_t>> mEventCallbacks;
 
 private:
     std::string mBuffer;
