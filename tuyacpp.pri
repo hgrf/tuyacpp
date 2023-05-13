@@ -8,6 +8,7 @@ DEFINES += TUYA_SINGLE_HEADER
 HEADERS += \
     $$PWD/loop/event.hpp \
     $$PWD/loop/handler.hpp \
+    $$PWD/loop/sockethandler.hpp \
     $$PWD/loop/loop.hpp \
     $$PWD/protocol/common.hpp \
     $$PWD/protocol/protocol.hpp \

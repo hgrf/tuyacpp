@@ -5,50 +5,21 @@
 
 #include "device.hpp"
 #include "loop/loop.hpp"
+#include "loop/sockethandler.hpp"
 #include "protocol/message.hpp"
 
 namespace tuya {
 
-class Scanner : public Handler {
+class Scanner : public SocketHandler {
 public:
     virtual const std::string& TAG() override { static const std::string tag = "SCANNER"; return tag; };
 
-    Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : mLoop(loop) {
-        int ret;
-
+    Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : SocketHandler(loop, 6667) {
         std::ifstream ifs(devicesFile);
         if (!ifs.is_open()) {
             throw std::runtime_error("Failed to open file");
         }
         mDevices = ordered_json::parse(ifs);
-        
-        mSocketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if (mSocketFd < 0) {
-            throw std::runtime_error("Failed to create socket");
-        }
-        
-        int broadcast = 1;
-        ret = setsockopt(mSocketFd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
-        if (ret < 0) {
-            throw std::runtime_error("Failed to setsockopt");
-        }
-
-        struct sockaddr_in myaddr;
-        memset(&myaddr, 0, sizeof(myaddr));
-        myaddr.sin_family = AF_INET;
-        myaddr.sin_addr.s_addr = INADDR_ANY;
-        myaddr.sin_port = htons(6667);
-        ret = bind(mSocketFd, (struct sockaddr *)&myaddr, sizeof(myaddr));
-        if (ret < 0) {
-            throw std::runtime_error("Failed to bind");
-        }
-
-        mLoop.attach(mSocketFd, this);
-    }
-
-    ~Scanner() {
-        mLoop.detach(mSocketFd);
-        close(mSocketFd);
     }
 
     virtual int handleRead(Event e, const std::string &ip, const ordered_json& data) override {
@@ -90,8 +61,6 @@ public:
     }
 
 private:
-    Loop& mLoop;
-    int mSocketFd;
     ordered_json mDevices;
 
     std::map<std::string, std::unique_ptr<Device>> mConnectedDevices;
