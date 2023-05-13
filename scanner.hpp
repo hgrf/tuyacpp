@@ -4,7 +4,7 @@
 #include <arpa/inet.h>
 
 #include "device.hpp"
-#include "loop.hpp"
+#include "loop/loop.hpp"
 #include "protocol/message.hpp"
 
 namespace tuya {
@@ -51,7 +51,7 @@ public:
         close(mSocketFd);
     }
 
-    virtual int handleRead(Loop::Event e, const std::string &ip, const ordered_json& data) override {
+    virtual int handleRead(Event e, const std::string &ip, const ordered_json& data) override {
         (void) data;
 
         /* ignore devices that are already registered */
@@ -63,7 +63,7 @@ public:
         auto& dev = *mConnectedDevices.at(ip);
 
         /* register event callback for closing socket */
-        dev.registerEventCallback(Loop::Event::CLOSING, [this, ip](Loop::Event e) {
+        dev.registerEventCallback(Event::CLOSING, [this, ip](Event e) {
             EV_LOGI(e) << "device " << ip << " disconnected" << std::endl;
             /* cannot erase device while in its callback, need to do it asynchronously */
             mDisconnectedList.push_back(ip);
@@ -75,7 +75,7 @@ public:
         return 0;
     }
 
-    virtual int handleClose(Loop::Event e) override {
+    virtual int handleClose(Event e) override {
         EV_LOGI(e) << "port is closing" << std::endl;
 
         return 0;

@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#include "loop.hpp"
+#include "loop/loop.hpp"
 #include "protocol/protocol.hpp"
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
@@ -56,12 +56,12 @@ public:
     {
     }
 
-    virtual int handleRead(Loop::Event e, const std::string& ip, const ordered_json& data) override {
+    virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) override {
         EV_LOGI(e) << "new message from " << ip << ": " << data << std::endl;
         return 0;
     }
 
-    virtual int handleClose(Loop::Event e) override {
+    virtual int handleClose(Event e) override {
         EV_LOGI(e) << mIp << " disconnected" << std::endl;
         return 0;
     }

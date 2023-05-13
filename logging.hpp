@@ -4,6 +4,7 @@
 #include <iostream>
 
 namespace tuya {
+
 class LogStream : public std::ostream {
 public:
     enum Level { DEBUG, INFO, WARNING, ERROR };

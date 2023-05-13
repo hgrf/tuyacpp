@@ -8,52 +8,15 @@
 #include <sys/select.h>
 #include <unistd.h>
 
-#include "protocol/message.hpp"
-#include "logging.hpp"
+#include "event.hpp"
+#include "../protocol/message.hpp"
+#include "../logging.hpp"
 
 namespace tuya {
 
 class Loop {
 public:
-    class Event;
-    typedef std::function<int(Loop::Event)> EventCallback_t;
-
-    class Event {
-    public:
-        enum Type : uint8_t {
-            INVALID,
-            READ,
-            CLOSING,
-        };
-        const int fd;
-        const Type type;
-
-        Event(int f, Type t, bool v) : fd(f), type(t), mVerbose(v) {}
-
-        const std::string& typeStr() const {
-            static const std::map<Type, std::string> map = {
-                {INVALID, "INVALID"},
-                {READ, "READ"},
-                {CLOSING, "CLOSING"}
-            };
-            const auto& it = map.find(type);
-            if (it == map.end())
-                return map.at(INVALID);
-            return it->second;
-        }
-
-        operator std::string() const {
-            return "Event {fd=" + std::to_string(fd) + ", type=" + typeStr() + "}";
-        }
-
-        std::ostream &log(LogStream& logger) {
-            return !mVerbose ? LogStream::get("", LogStream::ERROR) : logger << "[EV " << typeStr() << "(" << fd << ")] ";
-        }
-
-    private:
-        static std::map<std::string, LogStream> mLogStreams;
-        const bool mVerbose;
-    };
+    typedef std::function<int(Event)> EventCallback_t;
 
     class Handler {
         static const size_t BUFFER_SIZE = 1024;
@@ -83,7 +46,7 @@ public:
             });
         }
 
-        void registerEventCallback(Loop::Event::Type t, EventCallback_t cb) {
+        void registerEventCallback(Event::Type t, EventCallback_t cb) {
             const auto& it = mEventCallbacks.find(t);
             if (it == mEventCallbacks.end())
                 mEventCallbacks[t] = {cb};
@@ -149,7 +112,7 @@ public:
             return EV_LOG(e, LogStream::ERROR);
         }
         std::unique_ptr<Message> mMsg;
-        std::map<Loop::Event::Type, std::list<EventCallback_t>> mEventCallbacks;
+        std::map<Event::Type, std::list<EventCallback_t>> mEventCallbacks;
 
     private:
         std::string mBuffer;
