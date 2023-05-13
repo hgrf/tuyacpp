@@ -17,7 +17,7 @@ using ordered_json = nlohmann::ordered_json;
 
 namespace tuya {
 
-class Device : public Loop::Handler {
+class Device : public Handler {
     enum Command {
         DP_QUERY        = 0x0a,  //  10 // FRM_QUERY_STAT      // UPDATE_START_CMD - get data points
     };
@@ -26,7 +26,7 @@ public:
     virtual const std::string& TAG() override { static const std::string tag = "DEVICE"; return tag; };
 
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
-        Loop::Handler(key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop)
+        Handler(key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mLoop(loop)
     {
         mSocketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (mSocketFd < 0) {

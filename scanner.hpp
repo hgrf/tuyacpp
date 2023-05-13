@@ -9,7 +9,7 @@
 
 namespace tuya {
 
-class Scanner : public Loop::Handler {
+class Scanner : public Handler {
 public:
     virtual const std::string& TAG() override { static const std::string tag = "SCANNER"; return tag; };
 
