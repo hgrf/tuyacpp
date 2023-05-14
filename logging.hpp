@@ -8,24 +8,40 @@ namespace tuya {
 class LogStream : public std::ostream {
 public:
     enum Level { DEBUG, INFO, WARNING, ERROR };
-    static const std::map<Level, std::string> ColorMap;
-    static const std::string RESET_COLOR;
 
     // TODO: implement tag-specific log levels
     LogStream(const std::string& tag) : mTag(tag) {}
 
+    static std::map<std::string, LogStream>& logstreams() {
+        static std::map<std::string, LogStream> sLogStreams = {};
+        return sLogStreams;
+    }
+
+    static LogStream& nullstream() {
+        static LogStream sNullStream("");
+        return sNullStream;
+    }
+
     static LogStream& make(const std::string& t) {
-        auto result = mLogStreams.emplace(t, t);
-        return result.second ? result.first->second : mNullStream;
+        auto result = logstreams().emplace(t, t);
+        return result.second ? result.first->second : nullstream();
     }
 
     static LogStream& get(const std::string& t, Level l) {
-        if (!t.size())
-            return mNullStream;
+        static const std::map<LogStream::Level, std::string> colorMap = {
+            {LogStream::DEBUG, "\e[1;35m"},
+            {LogStream::INFO, "\e[1;32m"},
+            {LogStream::WARNING, "\e[1;33m"},
+            {LogStream::ERROR, "\e[1;31m"},
+        };
+        static const std::string resetColor = "\e[0m";
 
-        auto it = mLogStreams.find(t);
-        LogStream& s = (it != mLogStreams.end()) ? it->second : make(t);
-        s << ColorMap.at(l) << "[" << t << "] " << RESET_COLOR;
+        if (!t.size())
+            return nullstream();
+
+        auto it = logstreams().find(t);
+        LogStream& s = (it != logstreams().end()) ? it->second : make(t);
+        s << colorMap.at(l) << "[" << t << "] " << resetColor;
         return s;
     }
 
@@ -40,19 +56,7 @@ public:
 
 private:
     std::string mTag;
-    static LogStream mNullStream;
-    static std::map<std::string, LogStream> mLogStreams;
 };
-
-LogStream LogStream::mNullStream("");
-const std::map<LogStream::Level, std::string> LogStream::ColorMap{{
-    {LogStream::DEBUG, "\e[1;35m"},
-    {LogStream::INFO, "\e[1;32m"},
-    {LogStream::WARNING, "\e[1;33m"},
-    {LogStream::ERROR, "\e[1;31m"},
-}};
-const std::string LogStream::RESET_COLOR("\e[0m");
-std::map<std::string, LogStream> LogStream::mLogStreams = {};
 
 #define LOG_MEMBERS(t) \
     virtual const std::string& TAG() { static const std::string tag = #t; return tag; }; \

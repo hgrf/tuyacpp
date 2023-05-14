@@ -11,7 +11,6 @@
 
 #include "loop/loop.hpp"
 #include "loop/sockethandler.hpp"
-#include "protocol/protocol.hpp"
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
 
@@ -86,7 +85,9 @@ public:
     }
 
     static ordered_json& devices() {
-        if (!mDevices.size()) {
+        static ordered_json sDevices = ordered_json{};
+
+        if (!sDevices.size()) {
             const std::string devicesFile = "tinytuya/devices.json";
             std::ifstream ifs(devicesFile);
             if (!ifs.is_open()) {
@@ -94,10 +95,10 @@ public:
             }
             auto devices = ordered_json::parse(ifs);
             for (const auto& dev : devices)
-                mDevices[dev.at("ip")] = dev;
+                sDevices[dev.at("ip")] = dev;
         }
 
-        return mDevices;
+        return sDevices;
     }
 
 private:
@@ -105,11 +106,6 @@ private:
     std::string mGwId;
     std::string mDevId;
     std::string mLocalKey;
-    static ordered_json mDevices;
 };
 
 } // namespace tuya
-
-#ifdef TUYA_SINGLE_HEADER
-#include "device.cpp"
-#endif

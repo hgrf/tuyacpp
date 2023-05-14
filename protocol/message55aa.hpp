@@ -9,7 +9,6 @@
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
 
-#include "common.hpp"
 #include "message.hpp"
 
 namespace tuya {

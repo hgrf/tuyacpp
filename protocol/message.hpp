@@ -8,12 +8,13 @@
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
 
-#include "common.hpp"
-
 namespace tuya {
 
 class Message {
 public:
+    // md5(b"yGAdlopoPVldABfn").digest()
+    static constexpr const char* DEFAULT_KEY = "l\x1e\xc8\xe2\xbb\x9b\xb5\x9a\xb5\x0b\r\xaf""d\x9b""A\n";
+
     Message(uint32_t prefix, uint32_t seqNo, uint32_t cmd, const ordered_json& data) :
     mPrefix(prefix),
     mSeqNo(seqNo),
@@ -38,7 +39,6 @@ public:
     }
 
     virtual std::string serialize(const std::string& key = DEFAULT_KEY, bool noRetCode = true) = 0;
-    static std::unique_ptr<Message> deserialize(const std::string& raw, const std::string& key = DEFAULT_KEY, bool noRetCode = false);
 
 protected:
     static std::string encrypt(const std::string& plain, const std::string& key) {

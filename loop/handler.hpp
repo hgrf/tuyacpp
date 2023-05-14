@@ -7,7 +7,7 @@
 
 #include "event.hpp"
 #include "../logging.hpp"
-#include "../protocol/message.hpp"
+#include "../protocol/message55aa.hpp"
 
 namespace tuya {
 
@@ -17,7 +17,7 @@ class Handler {
     static const size_t BUFFER_SIZE = 1024;
 
 public:
-    Handler(const std::string& key = DEFAULT_KEY) : mBuffer("\0", BUFFER_SIZE), mKey(key) {
+    Handler(const std::string& key = Message::DEFAULT_KEY) : mBuffer("\0", BUFFER_SIZE), mKey(key) {
     }
 
     int handle(Event e) {
@@ -52,7 +52,18 @@ public:
         char addr_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
 
-        mMsg = Message::deserialize(mBuffer.substr(0, ret), mKey);
+        const std::string& raw = mBuffer.substr(0, ret);
+        if (raw.length() < 2 * sizeof(uint32_t))
+            throw std::runtime_error("message too short");
+
+        uint32_t prefix = ntohl(*reinterpret_cast<const uint32_t*>(raw.data()));
+        switch(prefix) {
+        case Message55AA::PREFIX:
+            mMsg = std::make_unique<Message55AA>(raw, mKey, false);
+            break;
+        default:
+            throw std::runtime_error("unknown prefix");
+        }
 
         return handleRead(e, addr_str, mMsg->data());
     }
