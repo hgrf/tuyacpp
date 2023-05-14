@@ -1,6 +1,5 @@
 #pragma once
 
-#include <list>
 #include <map>
 #include <set>
 
@@ -30,12 +29,16 @@ public:
     }
 
     int attach(int fd, Handler* handler) {
+        return attach(fd, "0.0.0.0", handler);
+    }
+
+    int attach(int fd, std::string addr, Handler* handler) {
         if (mHandlers.count(fd)) {
             LOGE() << "fd " << fd << " already registered" << std::endl;
             return -EALREADY;
         }
 
-        mHandlers[fd] = handler;
+        mHandlers[fd] = std::make_pair<std::string, Handler*>(std::move(addr), std::move(handler));
 
         return 0;
     }
@@ -50,7 +53,21 @@ public:
     }
 
     Handler* getHandler(int fd) {
-        return mHandlers.at(fd);
+        return mHandlers.at(fd).second;
+    }
+
+    int handleEvent(Event&& e) {
+        EV_LOGD(e) << "handling event: " << static_cast<std::string>(e) << std::endl;
+
+        int ret = 0;
+        auto handler = mHandlers.find(e.fd);
+        if (handler != mHandlers.end())
+            ret -= handler->second.second->handle(e);
+
+        for (auto &hIt : mExtraHandlers)
+            ret -= hIt->handle(e);
+
+        return ret;
     }
 
     int loop(unsigned int timeoutMs = 1000, bool verbose = true) {
@@ -60,7 +77,7 @@ public:
 
         for (const auto &it : mHandlers) {
             /* run heartBeat function of all handlers, regardless of socket state */
-            it.second->heartBeat();
+            it.second.second->heartBeat();
 
             FD_SET(it.first, &readFds);
             if (it.first > maxFd)
@@ -77,47 +94,38 @@ public:
             LOGE() << "select() failed: " << ret << std::endl;
             return ret;
         } else {
-            std::list<int> removeList;
-
             /* read data from all readable FDs */
-            std::set<int> processedFds = { -1 }; // ignore promiscuous handlers
-            for (const auto &it : mHandlers) {
-                const auto &fd = it.first;
-                if (processedFds.count(fd))
-                    continue;
+            std::set<int> processFds;
+            for (const auto &it : mHandlers)
+                if (it.first != -1) // ignore promiscuous handlers
+                    processFds.insert(it.first);
 
+            for (const auto &fd : processFds) {
                 if (!FD_ISSET(fd, &readFds))
                     continue;
 
                 struct sockaddr_in addr;
-                unsigned slen=sizeof(sockaddr);
+                unsigned slen = sizeof(sockaddr);
+
+                // TODO: this is SocketHandler specific
                 int ret = recvfrom(fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
-                if (ret <= 0) {
-                    CloseEvent ce(fd, verbose);
-                    it.second->handle(ce);
-                    removeList.push_back(fd);
-                    processedFds.insert(fd);
-                    continue;
+                if ((ret > 0) && slen) {
+                    char addr_str[INET_ADDRSTRLEN] = { 0 };
+                    inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
+                    if (mHandlers.at(fd).first != addr_str)
+                        mHandlers.at(fd).first.assign(addr_str);
                 }
 
-                char addr_str[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
-
-                /* call all handlers listening on this FD */
-                const std::string& data = mBuffer.substr(0, ret);
-                ReadEvent e(fd, data, addr_str, verbose);
-                for (auto &hIt : mHandlers)
-                    if (hIt.first == fd)
-                        hIt.second->handle(e);
-                for (auto &hIt : mExtraHandlers)
-                    hIt->handle(e);
-
-                processedFds.insert(fd);
-            }
-
-            for (const auto &fd : removeList) {
-                close(fd);
-                mHandlers.erase(fd);
+                if (ret <= 0) {
+                    ret = handleEvent(CloseEvent(fd, mHandlers.at(fd).first, verbose));
+                } else {
+                    /* call all handlers listening on this FD */
+                    const std::string& data = mBuffer.substr(0, ret);
+                    ret = handleEvent(ReadEvent(fd, data, mHandlers.at(fd).first, verbose));
+                }
+                if (ret == -1) {
+                    mHandlers.erase(fd);
+                }
             }
         }
 
@@ -128,7 +136,7 @@ private:
     LOG_MEMBERS(LOOP);
 
     std::string mBuffer;
-    std::map<int, Handler*> mHandlers;
+    std::map<int, std::pair<std::string, Handler*>> mHandlers;
     std::set<Handler*> mExtraHandlers;
 };
 

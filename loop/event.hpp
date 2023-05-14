@@ -57,7 +57,9 @@ public:
 
 class CloseEvent : public Event {
 public:
-    CloseEvent(int f, bool v) : Event(f, Event::CLOSING, v) {}
+    const std::string &addr;
+
+    CloseEvent(int f, const std::string &a, bool v) : Event(f, Event::CLOSING, v), addr(a) {}
 };
 
 }  // namespace tuya

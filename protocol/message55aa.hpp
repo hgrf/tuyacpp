@@ -68,7 +68,7 @@ public:
             try {
                 mData = ordered_json::parse(result);
             } catch (const ordered_json::parse_error& e) {
-                std::cerr << "Failed to parse payload. Message: " << (const std::string&) *this << std::endl;
+                LOGE() << "Failed to parse payload. Message: " << (const std::string&) *this << std::endl;
                 mData = ordered_json();
             }
         }

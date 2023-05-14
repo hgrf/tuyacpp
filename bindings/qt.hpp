@@ -23,7 +23,7 @@ public:
     }
 
     virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) override {
-        LOGI() << "new message from " << ip << ": " << data << std::endl;
+        EV_LOGI(e) << "new message from " << ip << ": " << data << std::endl;
 
         const auto& qip = QString::fromStdString(ip);
         if (e.fd == mScanner.fd()) {
