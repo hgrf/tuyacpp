@@ -22,6 +22,10 @@ public:
         mDevices = ordered_json::parse(ifs);
     }
 
+    ordered_json& knownDevices() {
+        return mDevices;
+    }
+
     virtual int handleRead(Event e, const std::string &ip, const ordered_json& data) override {
         (void) data;
         if (e.fd != mSocketFd)
