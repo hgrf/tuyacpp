@@ -12,14 +12,19 @@ namespace tuya {
 
 class Scanner : public SocketHandler {
 public:
-    virtual const std::string& TAG() override { static const std::string tag = "SCANNER"; return tag; };
-
     Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : SocketHandler(loop, 6667) {
         std::ifstream ifs(devicesFile);
         if (!ifs.is_open()) {
             throw std::runtime_error("Failed to open file");
         }
         mDevices = ordered_json::parse(ifs);
+
+        /* attach to loop as promiscuous handler */
+        mLoop.attachExtra(this);
+    }
+
+    ~Scanner() {
+        mLoop.detachExtra(this);
     }
 
     ordered_json& knownDevices() {
@@ -39,15 +44,12 @@ public:
         mConnectedDevices[e.fd] = std::make_unique<Device>(mLoop, ip);
         auto& dev = *mConnectedDevices.at(e.fd);
 
-        /* register event callback for closing socket */
-        mLoop.attach(dev.fd(), this);
-
         EV_LOGI(e) << "new device discovered: " << static_cast<std::string>(dev) << std::endl;
 
         return 0;
     }
 
-    virtual int handleClose(Event e) override {
+    virtual int handleClose(CloseEvent& e) override {
         if (e.fd == mSocketFd) {
             EV_LOGI(e) << "port is closing" << std::endl;
         } else {
@@ -68,6 +70,8 @@ public:
     }
 
 private:
+    virtual const std::string& TAG() override { static const std::string tag = "SCANNER"; return tag; };
+
     ordered_json mDevices;
 
     std::map<int, std::unique_ptr<Device>> mConnectedDevices;

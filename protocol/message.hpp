@@ -8,6 +8,9 @@
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
 
+#include "../loop/event.hpp"
+#include "../logging.hpp"
+
 namespace tuya {
 
 class Message {
@@ -30,6 +33,11 @@ public:
         return ss.str();
     }
 
+
+    bool hasData() {
+        return !(mData.is_array() && (mData.size() == 1) && mData.at(0).is_null());
+    }
+
     const ordered_json& data() const {
         return mData;
     }
@@ -41,7 +49,9 @@ public:
     virtual std::string serialize(const std::string& key = DEFAULT_KEY, bool noRetCode = true) = 0;
 
 protected:
-    static std::string encrypt(const std::string& plain, const std::string& key) {
+    LOG_MEMBERS(MESSAGE);
+
+    std::string encrypt(const std::string& plain, const std::string& key) {
         std::string err;
         const char padNum = 16 - plain.length() % 16;
         std::string result = plain + std::string(padNum, padNum);
@@ -64,14 +74,13 @@ protected:
 
         if(err.length()) {
             result.clear();
-            std::cerr << "encrypt() failed: " << err << std::endl;
+            LOGE() << "encrypt() failed: " << err << std::endl;
         }
 
         return result;
     }
 
-
-    static std::string decrypt(const std::string& cipher, const std::string& key) {
+    std::string decrypt(const std::string& cipher, const std::string& key) {
         // TODO: padding operation should be symmetric with encrypt
         std::string err;
         std::string result = cipher;
@@ -101,7 +110,7 @@ protected:
 
         if (err.length()) {
             result.clear();
-            std::cerr << "decrypt() failed: " << err << std::endl;
+            LOGE() << "decrypt() failed: " << err << std::endl;
         }
 
         return result;

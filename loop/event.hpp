@@ -17,8 +17,6 @@ public:
     const int fd;
     const Type type;
 
-    Event(int f, Type t, bool v) : fd(f), type(t), mVerbose(v) {}
-
     const std::string& typeStr() const {
         static const std::map<Type, std::string> map = {
             {INVALID, "INVALID"},
@@ -39,9 +37,27 @@ public:
         return !mVerbose ? LogStream::get("", LogStream::ERROR) : logger << "[EV " << typeStr() << "(" << fd << ")] ";
     }
 
+    virtual ~Event() = default;
+
+protected:
+    Event(int f, Type t, bool v) : fd(f), type(t), mVerbose(v) {}
+
 private:
     static std::map<std::string, LogStream> mLogStreams;
     const bool mVerbose;
+};
+
+class ReadEvent : public Event {
+public:
+    const std::string &addr;
+    const std::string &data;
+
+    ReadEvent(int f, const std::string &d, const std::string &a, bool v) : Event(f, Event::READ, v), addr(a), data(d) {}
+};
+
+class CloseEvent : public Event {
+public:
+    CloseEvent(int f, bool v) : Event(f, Event::CLOSING, v) {}
 };
 
 }  // namespace tuya

@@ -6,7 +6,12 @@ namespace tuya {
 
 class SocketHandler : public Handler {
 public:
-    SocketHandler(Loop& loop, int port) : mLoop(loop) {
+    SocketHandler(Loop& loop) : mLoop(loop), mSocketFd(-1), mKey(Message::DEFAULT_KEY) {
+        /* register a promiscuous fd handler */
+        mLoop.attachExtra(this);
+    }
+
+    SocketHandler(Loop& loop, int port) : mLoop(loop), mKey(Message::DEFAULT_KEY) {
         int ret;
 
         mSocketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -33,7 +38,7 @@ public:
         mLoop.attach(mSocketFd, this);
     };
 
-    SocketHandler(Loop& loop, const std::string& ip, int port, const std::string& key) : Handler(key), mLoop(loop) {
+    SocketHandler(Loop& loop, const std::string& ip, int port, const std::string& key) : mLoop(loop), mKey(key) {
         mSocketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (mSocketFd < 0) {
             throw std::runtime_error("Failed to create socket");
@@ -53,9 +58,49 @@ public:
         mLoop.attach(mSocketFd, this);
     }
 
+    virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
+        EV_LOGI(e) << "received message from " << ip << ": " << data << std::endl;
+        return 0;
+    }
+
+    virtual std::unique_ptr<Message> parse(int fd, const std::string& data) {
+        /* use the parser from the SocketHandler that specifically belongs to this FD
+         * so that the correct key is used for message decrypting
+         */
+        if (fd != mSocketFd) {
+            Handler* handler = mLoop.getHandler(fd);
+            SocketHandler* socketHandler = dynamic_cast<SocketHandler*>(handler);
+            if (socketHandler != nullptr)
+                return socketHandler->parse(fd, data);
+            else
+                return std::make_unique<Message55AA>(data, mKey, false);
+        }
+
+        if (data.length() < 2 * sizeof(uint32_t))
+            throw std::runtime_error("message too short");
+
+        uint32_t prefix = ntohl(*reinterpret_cast<const uint32_t*>(data.data()));
+        switch(prefix) {
+        case Message55AA::PREFIX:
+            return std::make_unique<Message55AA>(data, mKey, false);
+            break;
+        default:
+            throw std::runtime_error("unknown prefix");
+        }
+    }
+
+    virtual int handleRead(ReadEvent& e) override {
+        mMsg = parse(e.fd, e.data);
+        return mMsg->hasData() ? handleRead(e, e.addr, mMsg->data()) : 0;
+    }
+
     ~SocketHandler() {
-        mLoop.detach(mSocketFd);
-        close(mSocketFd);
+        if (mSocketFd == -1) {
+            mLoop.detachExtra(this);
+        } else {
+            mLoop.detach(mSocketFd);
+            close(mSocketFd);
+        }
     }
 
     int fd() const { 
@@ -65,6 +110,9 @@ public:
 protected:
     Loop& mLoop;
     int mSocketFd;
+
+private:
+    std::string mKey;
 };
 
 } // namespace tuya

@@ -23,8 +23,6 @@ class Device : public SocketHandler {
     };
 
 public:
-    virtual const std::string& TAG() override { static const std::string tag = "DEVICE"; return tag; };
-
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
         SocketHandler(loop, ip, 6668, key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key)
     {
@@ -43,7 +41,7 @@ public:
         return 0;
     }
 
-    virtual int handleClose(Event e) override {
+    virtual int handleClose(CloseEvent& e) override {
         EV_LOGI(e) << mIp << " disconnected" << std::endl;
         return 0;
     }
@@ -102,6 +100,8 @@ public:
     }
 
 private:
+    virtual const std::string& TAG() override { static const std::string tag = "DEVICE"; return tag; };
+
     std::string mIp;
     std::string mGwId;
     std::string mDevId;

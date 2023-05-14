@@ -10,6 +10,7 @@
 using ordered_json = nlohmann::ordered_json;
 
 #include "message.hpp"
+#include "../logging.hpp"
 
 namespace tuya {
 
@@ -62,13 +63,14 @@ public:
             throw std::runtime_error("invalid CRC");
 
         auto result = decrypt(std::string(raw.data() + headerLen, payloadLen), key);
-
-        try {
-            mData = ordered_json::parse(result);
-        } catch (const ordered_json::parse_error& e) {
-            std::cerr << "Failed to parse payload: " << result << std::endl;
-            std::cerr << "  Message: " << (const std::string&) *this << std::endl;
-            std::cerr << "  Error: " << e.what() << std::endl;
+        if (result.length())
+        {
+            try {
+                mData = ordered_json::parse(result);
+            } catch (const ordered_json::parse_error& e) {
+                std::cerr << "Failed to parse payload. Message: " << (const std::string&) *this << std::endl;
+                mData = ordered_json();
+            }
         }
     }
 

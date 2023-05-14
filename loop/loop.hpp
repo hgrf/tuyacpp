@@ -2,6 +2,7 @@
 
 #include <list>
 #include <map>
+#include <set>
 
 #include <errno.h>
 #include <sys/select.h>
@@ -14,10 +15,25 @@
 namespace tuya {
 
 class Loop {
+    static const size_t BUFFER_SIZE = 1024;
+
 public:
+    Loop() : mBuffer("\0", BUFFER_SIZE) {
+    }
+
+    void attachExtra(Handler* handler) {
+        mExtraHandlers.insert(handler);
+    }
+
+    void detachExtra(Handler* handler) {
+        mExtraHandlers.erase(handler);
+    }
+
     int attach(int fd, Handler* handler) {
-        if (mHandlers.count(fd))
+        if (mHandlers.count(fd)) {
+            LOGE() << "fd " << fd << " already registered" << std::endl;
             return -EALREADY;
+        }
 
         mHandlers[fd] = handler;
 
@@ -31,6 +47,10 @@ public:
         mHandlers.erase(fd);
 
         return 0;
+    }
+
+    Handler* getHandler(int fd) {
+        return mHandlers.at(fd);
     }
 
     int loop(unsigned int timeoutMs = 1000, bool verbose = true) {
@@ -54,24 +74,47 @@ public:
 
         int ret = select(++maxFd, &readFds, NULL, NULL, &tv);
         if (ret < 0) {
-            std::cerr << "select() failed: " << ret << std::endl;
+            LOGE() << "select() failed: " << ret << std::endl;
             return ret;
         } else {
             std::list<int> removeList;
-            for (auto &it : mHandlers) {
+
+            /* read data from all readable FDs */
+            std::set<int> processedFds = { -1 }; // ignore promiscuous handlers
+            for (const auto &it : mHandlers) {
                 const auto &fd = it.first;
-                if (FD_ISSET(fd, &readFds)) {
-                    int handleRet = it.second->handle(Event(fd, Event::READ, verbose));
-                    if (handleRet < 0) {
-                        it.second->handle(Event(fd, Event::CLOSING, verbose));
-                        removeList.push_back(fd);
-                    }
-                    ret--;
+                if (processedFds.count(fd))
+                    continue;
+
+                if (!FD_ISSET(fd, &readFds))
+                    continue;
+
+                struct sockaddr_in addr;
+                unsigned slen=sizeof(sockaddr);
+                int ret = recvfrom(fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
+                if (ret <= 0) {
+                    CloseEvent ce(fd, verbose);
+                    it.second->handle(ce);
+                    removeList.push_back(fd);
+                    processedFds.insert(fd);
+                    continue;
                 }
 
-                if (!ret)
-                    break;
+                char addr_str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
+
+                /* call all handlers listening on this FD */
+                const std::string& data = mBuffer.substr(0, ret);
+                ReadEvent e(fd, data, addr_str, verbose);
+                for (auto &hIt : mHandlers)
+                    if (hIt.first == fd)
+                        hIt.second->handle(e);
+                for (auto &hIt : mExtraHandlers)
+                    hIt->handle(e);
+
+                processedFds.insert(fd);
             }
+
             for (const auto &fd : removeList) {
                 close(fd);
                 mHandlers.erase(fd);
@@ -82,7 +125,11 @@ public:
     }
 
 private:
+    LOG_MEMBERS(LOOP);
+
+    std::string mBuffer;
     std::map<int, Handler*> mHandlers;
+    std::set<Handler*> mExtraHandlers;
 };
 
 } // namespace tuya
