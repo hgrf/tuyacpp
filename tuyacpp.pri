@@ -12,7 +12,8 @@ HEADERS += \
     $$PWD/protocol/message55aa.hpp \
     $$PWD/logging.hpp \
     $$PWD/device.hpp \
-    $$PWD/scanner.hpp
+    $$PWD/scanner.hpp \
+    $$PWD/bindings/qt.hpp
 
 LIBS += -lcrypto -lssl
 

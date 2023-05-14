@@ -83,7 +83,7 @@ public:
     }
 
 protected:
-    LOG_MEMBERS("HANDLER");
+    LOG_MEMBERS(HANDLER);
     std::unique_ptr<Message> mMsg;
 
 private:
