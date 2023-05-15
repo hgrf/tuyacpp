@@ -70,7 +70,7 @@ public:
         return ret;
     }
 
-    int loop(unsigned int timeoutMs = 1000, bool verbose = true) {
+    int loop(unsigned int timeoutMs = 1000, LogStream::Level logLevel = LogStream::INFO) {
         fd_set readFds;
         FD_ZERO(&readFds);
         int maxFd = 0;
@@ -117,11 +117,11 @@ public:
                 }
 
                 if (ret <= 0) {
-                    ret = handleEvent(CloseEvent(fd, mHandlers.at(fd).first, verbose));
+                    ret = handleEvent(CloseEvent(fd, mHandlers.at(fd).first, logLevel));
                 } else {
                     /* call all handlers listening on this FD */
                     const std::string& data = mBuffer.substr(0, ret);
-                    ret = handleEvent(ReadEvent(fd, data, mHandlers.at(fd).first, verbose));
+                    ret = handleEvent(ReadEvent(fd, data, mHandlers.at(fd).first, logLevel));
                 }
                 if (ret == -1) {
                     mHandlers.erase(fd);

@@ -16,6 +16,7 @@ public:
     };
     const int fd;
     const Type type;
+    const LogStream::Level logLevel;
 
     const std::string& typeStr() const {
         static const std::map<Type, std::string> map = {
@@ -33,18 +34,20 @@ public:
         return "Event {fd=" + std::to_string(fd) + ", type=" + typeStr() + "}";
     }
 
-    std::ostream &log(LogStream& logger) {
-        return !mVerbose ? LogStream::get("", LogStream::ERROR) : logger << "[EV " << typeStr() << "(" << fd << ")] ";
+    std::ostream &log(const std::string& tag, LogStream::Level level) {
+        if (level >= logLevel)
+            return LogStream::get(tag, level) << "[EV " << typeStr() << "(" << fd << ")] ";
+        else
+            return LogStream::nullstream();
     }
 
     virtual ~Event() = default;
 
 protected:
-    Event(int f, Type t, bool v) : fd(f), type(t), mVerbose(v) {}
+    Event(int f, Type t, LogStream::Level l) : fd(f), type(t), logLevel(l) {}
 
 private:
     static std::map<std::string, LogStream> mLogStreams;
-    const bool mVerbose;
 };
 
 class ReadEvent : public Event {
@@ -52,14 +55,14 @@ public:
     const std::string &addr;
     const std::string &data;
 
-    ReadEvent(int f, const std::string &d, const std::string &a, bool v) : Event(f, Event::READ, v), addr(a), data(d) {}
+    ReadEvent(int f, const std::string &d, const std::string &a, LogStream::Level l) : Event(f, Event::READ, l), addr(a), data(d) {}
 };
 
 class CloseEvent : public Event {
 public:
     const std::string &addr;
 
-    CloseEvent(int f, const std::string &a, bool v) : Event(f, Event::CLOSING, v), addr(a) {}
+    CloseEvent(int f, const std::string &a, LogStream::Level l) : Event(f, Event::CLOSING, l), addr(a) {}
 };
 
 }  // namespace tuya
