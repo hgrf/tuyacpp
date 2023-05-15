@@ -58,11 +58,6 @@ public:
         mLoop.attach(mSocketFd, ip, this);
     }
 
-    virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
-        EV_LOGI(e) << "received message from " << ip << ": " << data << std::endl;
-        return 0;
-    }
-
     virtual std::unique_ptr<Message> parse(int fd, const std::string& data) {
         /* use the parser from the SocketHandler that specifically belongs to this FD
          * so that the correct key is used for message decrypting
@@ -87,6 +82,11 @@ public:
         default:
             throw std::runtime_error("unknown prefix");
         }
+    }
+
+    virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
+        EV_LOGI(e) << "received message from " << ip << ": " << data << std::endl;
+        return 0;
     }
 
     virtual int handleRead(ReadEvent& e) override {

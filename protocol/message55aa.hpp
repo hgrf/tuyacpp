@@ -40,6 +40,18 @@ public:
 
     Message55AA(const std::string& raw, const std::string& key = DEFAULT_KEY, bool noRetCode = false) :
         Message(0, 0, 0, ordered_json{{}}) {
+        static const std::map<int, const std::string> dpsToString = {
+            {1, "is_on"},
+            {2, "mode"},
+            {3, "brightness"},
+            {4, "colourtemp"},
+            {5, "colour"},
+            {20, "is_on"},
+            {21, "mode"},
+            {22, "brightness"},
+            {23, "colourtemp"},
+            {24, "colour"},
+        };
         const size_t headerLen = noRetCode ? (sizeof(Header) - sizeof(uint32_t)) : sizeof(Header);
         const size_t footerLen = sizeof(Footer);
         if (raw.length() < headerLen + footerLen)
@@ -67,6 +79,14 @@ public:
         {
             try {
                 mData = ordered_json::parse(result);
+                if (mData.contains("dps")) {
+                    auto dps = mData["dps"];
+                    for (auto it = dps.begin(); it != dps.end(); ++it) {
+                        auto dpsString = dpsToString.find(std::stoi(it.key()));
+                        if (dpsString != dpsToString.end())
+                            mData[dpsString->second] = it.value();
+                    }
+                }
             } catch (const ordered_json::parse_error& e) {
                 LOGE() << "Failed to parse payload. Message: " << (const std::string&) *this << std::endl;
                 mData = ordered_json();
