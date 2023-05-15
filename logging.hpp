@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+#include <ctime>
 #include <map>
 #include <iostream>
 
@@ -28,6 +30,12 @@ public:
     }
 
     static LogStream& get(const std::string& t, Level l) {
+        static const std::map<LogStream::Level, std::string> levelMap = {
+            {LogStream::DEBUG, "DEBUG"},
+            {LogStream::INFO, "INFO"},
+            {LogStream::WARNING, "WARNING"},
+            {LogStream::ERROR, "ERROR"},
+        };
         static const std::map<LogStream::Level, std::string> colorMap = {
             {LogStream::DEBUG, "\e[1;35m"},
             {LogStream::INFO, "\e[1;32m"},
@@ -39,9 +47,13 @@ public:
         if (!t.size())
             return nullstream();
 
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+        const auto& now_ctime = std::ctime(&now_time);
+        const auto& levelStr = levelMap.at(l);
         auto it = logstreams().find(t);
         LogStream& s = (it != logstreams().end()) ? it->second : make(t);
-        s << colorMap.at(l) << "[" << t << "] " << resetColor;
+        s << colorMap.at(l) << "[" << std::string(now_ctime + 11, now_ctime + 19) << " " << levelStr << " " << t << "] " << resetColor;
         return s;
     }
 
