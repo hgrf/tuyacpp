@@ -14,10 +14,14 @@
 namespace tuya {
 
 class Loop {
-    static const size_t BUFFER_SIZE = 1024;
+    struct DelayedWork {
+        DelayedWork(std::chrono::time_point<std::chrono::steady_clock> d, std::function<void()>& w) : deadline(d), work(w) {}
+        std::chrono::time_point<std::chrono::steady_clock> deadline;
+        std::function<void()> work;
+    };
 
 public:
-    Loop() : mBuffer("\0", BUFFER_SIZE) {
+    Loop() {
     }
 
     void attachExtra(Handler* handler) {
@@ -29,16 +33,12 @@ public:
     }
 
     int attach(int fd, Handler* handler) {
-        return attach(fd, "0.0.0.0", handler);
-    }
-
-    int attach(int fd, std::string addr, Handler* handler) {
         if (mHandlers.count(fd)) {
             LOGE() << "fd " << fd << " already registered" << std::endl;
             return -EALREADY;
         }
 
-        mHandlers[fd] = std::make_pair<std::string, Handler*>(std::move(addr), std::move(handler));
+        mHandlers[fd] = handler;
 
         return 0;
     }
@@ -53,32 +53,42 @@ public:
     }
 
     Handler* getHandler(int fd) {
-        return mHandlers.at(fd).second;
+        return mHandlers.at(fd);
     }
 
-    int handleEvent(Event&& e) {
-        EV_LOGD(e) << "handling event: " << static_cast<std::string>(e) << std::endl;
+    void pushWork(std::function<void()>&& work, uint32_t delayMs = 0) {
+        mWork.push_back(DelayedWork(std::chrono::steady_clock::now() + std::chrono::milliseconds(delayMs), work));
+    }
 
-        int ret = 0;
+    void handleEvent(Event&& e) {
         auto handler = mHandlers.find(e.fd);
         if (handler != mHandlers.end())
-            ret -= handler->second.second->handle(e);
+            handler->second->handle(e);
 
         for (auto &hIt : mExtraHandlers)
-            ret -= hIt->handle(e);
-
-        return ret;
+            hIt->handle(e);
     }
 
     int loop(unsigned int timeoutMs = 1000, LogStream::Level logLevel = LogStream::INFO) {
+        for (;;) {
+            auto it = mWork.begin();
+            for (; it != mWork.end(); ++it) {
+                if (it->deadline < std::chrono::steady_clock::now()) {
+                    it->work();
+                    break;
+                }
+            }
+            if (it != mWork.end())
+                mWork.erase(it);
+            else
+                break;
+        }
+
         fd_set readFds;
         FD_ZERO(&readFds);
         int maxFd = 0;
 
         for (const auto &it : mHandlers) {
-            /* run heartBeat function of all handlers, regardless of socket state */
-            it.second.second->heartBeat();
-
             FD_SET(it.first, &readFds);
             if (it.first > maxFd)
                 maxFd = it.first;
@@ -95,37 +105,12 @@ public:
             return ret;
         } else {
             /* read data from all readable FDs */
-            std::set<int> processFds;
-            for (const auto &it : mHandlers)
-                if (it.first != -1) // ignore promiscuous handlers
-                    processFds.insert(it.first);
-
-            for (const auto &fd : processFds) {
+            for (const auto &it : mHandlers) {
+                const auto &fd = it.first;
                 if (!FD_ISSET(fd, &readFds))
                     continue;
 
-                struct sockaddr_in addr;
-                unsigned slen = sizeof(sockaddr);
-
-                // TODO: this is SocketHandler specific
-                int ret = recvfrom(fd, const_cast<char*>(mBuffer.data()), mBuffer.length(), 0, (struct sockaddr *)&addr, &slen);
-                if ((ret > 0) && slen) {
-                    char addr_str[INET_ADDRSTRLEN] = { 0 };
-                    inet_ntop(AF_INET, &(addr.sin_addr), addr_str, INET_ADDRSTRLEN);
-                    if (mHandlers.at(fd).first != addr_str)
-                        mHandlers.at(fd).first.assign(addr_str);
-                }
-
-                if (ret <= 0) {
-                    ret = handleEvent(CloseEvent(fd, mHandlers.at(fd).first, logLevel));
-                } else {
-                    /* call all handlers listening on this FD */
-                    const std::string& data = mBuffer.substr(0, ret);
-                    ret = handleEvent(ReadEvent(fd, data, mHandlers.at(fd).first, logLevel));
-                }
-                if (ret == -1) {
-                    mHandlers.erase(fd);
-                }
+                handleEvent(ReadableEvent(fd, logLevel));
             }
         }
 
@@ -135,8 +120,8 @@ public:
 private:
     LOG_MEMBERS(LOOP);
 
-    std::string mBuffer;
-    std::map<int, std::pair<std::string, Handler*>> mHandlers;
+    std::list<DelayedWork> mWork;
+    std::map<int, Handler*> mHandlers;
     std::set<Handler*> mExtraHandlers;
 };
 

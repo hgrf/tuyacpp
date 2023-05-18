@@ -22,22 +22,22 @@ public:
         return mScanner;
     }
 
-    virtual int handleRead(ReadEvent& e) override {
+    virtual void handleRead(ReadEvent& e) override {
         std::unique_ptr<Message> msg = parse(e.fd, e.data);
         if (!msg->hasData()) {
             EV_LOGE(e) << "failed to parse " << static_cast<std::string>(*msg) << std::endl;
-            return 0;
+            return;
         }
 
         const auto& qip = QString::fromStdString(e.addr);
         if (e.fd == mScanner.fd()) {
             emit deviceDiscovered(qip);
-            return 0;
+            return;
         } else {
             const auto& doc = QJsonDocument::fromJson(QByteArray::fromStdString(msg->data().dump()));
             emit newDeviceData(qip, doc);
         }
-        return 0;
+        return;
     }
 
     virtual void run() override {

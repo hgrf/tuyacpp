@@ -17,70 +17,72 @@ public:
         if (!ifs.is_open()) {
             throw std::runtime_error("Failed to open file");
         }
-        mDevices = ordered_json::parse(ifs);
+        mKnownDevices = ordered_json::parse(ifs);
 
         /* attach to loop as promiscuous handler */
         mLoop.attachExtra(this);
+
+        /* register all known devices */
+        for (const auto& devDesc : mKnownDevices) {
+            const auto& addr = devDesc["ip"];
+            mDevices[addr] = std::make_shared<Device>(mLoop, addr);
+        }
     }
 
     ~Scanner() {
         mLoop.detachExtra(this);
     }
 
-    ordered_json& knownDevices() {
-        return mDevices;
+    std::set<std::string> getDevices() {
+        std::set<std::string> devices;
+        for (const auto& it : mDevices)
+            devices.insert(it.first);
+        return devices;
+    }
+
+    const ordered_json& knownDevices() {
+        return mKnownDevices;
     }
 
     std::shared_ptr<Device> getDevice(const std::string& ip) {
-        if (mConnectedDevices.count(ip))
-            return mConnectedDevices.at(ip);
+        if (mDevices.count(ip))
+            return mDevices.at(ip);
         return std::shared_ptr<Device>();
     }
 
-    virtual int handleRead(ReadEvent& e) override {
+    virtual void handleRead(ReadEvent& e) override {
         if (e.fd != mSocketFd)
-            return 0;
+            return;
 
         /* ignore devices that are already registered */
-        if (mConnectedDevices.count(e.addr))
-            return 0;
+        if (mDevices.count(e.addr))
+            return;
 
         std::unique_ptr<Message> msg = parse(e.fd, e.data);
         if (!msg->hasData())
-            return 0;
+            return;
 
         /* register new device */
         auto dev = std::make_shared<Device>(mLoop, e.addr);
         EV_LOGI(e) << "new device discovered: " << static_cast<std::string>(*dev) << std::endl;
-        mConnectedDevices[e.addr] = std::move(dev);
+        mDevices[e.addr] = std::move(dev);
 
-        return 0;
+        return;
     }
 
-    virtual int handleClose(CloseEvent& e) override {
-        /* cannot erase device while in its callback, need to do it asynchronously */
-        mDisconnectedList.push_back(e.addr);
-        EV_LOGI(e) << "device " << static_cast<std::string>(*mConnectedDevices[e.addr])
+    virtual void handleClose(CloseEvent& e) override {
+        EV_LOGI(e) << "device " << static_cast<std::string>(*mDevices[e.addr])
             << " disconnected" << std::endl;
 
-        return SocketHandler::handleClose(e);
-    }
-
-    virtual int heartBeat() override {
-        for (const auto& ip : mDisconnectedList)
-            mConnectedDevices.erase(ip);
-        mDisconnectedList.clear();
-
-        return 0;
+        return;
     }
 
 private:
     virtual const std::string& TAG() override { static const std::string tag = "SCANNER"; return tag; };
 
-    ordered_json mDevices;
+    ordered_json mKnownDevices;
 
-    std::map<std::string, std::shared_ptr<Device>> mConnectedDevices;
-    std::list<std::string> mDisconnectedList;
+    std::map<std::string, std::shared_ptr<Device>> mDevices;
 };
 
 } // namespace tuya

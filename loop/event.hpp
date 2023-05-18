@@ -9,8 +9,12 @@ namespace tuya {
 
 class Event {
 public:
+    Event(const Event& other) : Event(other.fd, other.type, other.logLevel) {}
+
     enum Type : uint8_t {
         INVALID,
+        CONNECTED,
+        READABLE,
         READ,
         CLOSING,
     };
@@ -21,6 +25,8 @@ public:
     const std::string& typeStr() const {
         static const std::map<Type, std::string> map = {
             {INVALID, "INVALID"},
+            {CONNECTED, "CONNECTED"},
+            {READABLE, "READABLE"},
             {READ, "READ"},
             {CLOSING, "CLOSING"}
         };
@@ -48,6 +54,16 @@ protected:
 
 private:
     static std::map<std::string, LogStream> mLogStreams;
+};
+
+class ConnectedEvent : public Event {
+public:
+    ConnectedEvent(int f, LogStream::Level l) : Event(f, Event::CONNECTED, l) {}
+};
+
+class ReadableEvent : public Event {
+public:
+    ReadableEvent(int f, LogStream::Level l) : Event(f, Event::READABLE, l) {}
 };
 
 class ReadEvent : public Event {

@@ -20,19 +20,22 @@ namespace tuya {
 class Device : public SocketHandler {
 public:
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
-        SocketHandler(loop, ip, 6668, key), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mSeqNo(1)
+        SocketHandler(loop, ip, 6668, key), mTag("DEVICE " + ip), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mSeqNo(1)
     {
-        LOGI() << "connected to " << ip << ": " << (const std::string) *this << std::endl;
-        sendCommand(Message::DP_QUERY, ordered_json(), [this](const ordered_json& data) {
-            LOGI() << "got response to DP_QUERY: " << data << std::endl;
-            mDps = data["dps"];
-        });
     }
 
     Device(Loop &loop, const std::string& ip) :
         // TODO: failure to look up will result in exception -> devices()[ip] should somehow return a default value (maybe device(ip)...)
         Device(loop, ip, devices()[ip]["uuid"], devices()[ip]["id"], devices()[ip]["key"])
     {
+    }
+
+    virtual void handleConnected(ConnectedEvent& e) override {
+        EV_LOGI(e) << "connected" << std::endl;
+        sendCommand(Message::DP_QUERY, ordered_json(), [this](const ordered_json& data) {
+            LOGI() << "got response to DP_QUERY: " << data << std::endl;
+            mDps = data["dps"];
+        });
     }
 
     int setOn(bool b) {
@@ -47,11 +50,11 @@ public:
         return sendCommand(Message::CONTROL, ordered_json{{key, b}});
     }
 
-    virtual int handleRead(ReadEvent& e) override {
+    virtual void handleRead(ReadEvent& e) override {
         std::unique_ptr<Message> msg = parse(e.fd, e.data);
         if (!msg->hasData()) {
             EV_LOGE(e) << "failed to parse data in " << static_cast<std::string>(*msg) << std::endl;
-            return 0;
+            return;
         }
 
         if ((msg->seqNo() == mCmdCtx.seqNo) && (msg->cmd() == static_cast<uint32_t>(mCmdCtx.command))) {
@@ -62,13 +65,12 @@ public:
         } else {
             EV_LOGI(e) << "new message from " << e.addr << ": " << static_cast<std::string>(*msg) << std::endl;
         }
-
-        return 0;
     }
 
-    virtual int handleClose(CloseEvent& e) override {
+    virtual void handleClose(CloseEvent& e) override {
         EV_LOGI(e) << mIp << " disconnected" << std::endl;
-        return 0;
+
+        mLoop.pushWork([this] () { connectSocket(); });
     }
 
     int sendRaw(const std::string& message) {
@@ -137,17 +139,18 @@ public:
     }
 
 private:
-    virtual const std::string& TAG() override { static const std::string tag = "DEVICE"; return tag; };
+    virtual const std::string& TAG() override { return mTag; };
 
     struct {
         uint32_t seqNo = 0;
         Message::Command command;
         std::function<void(const ordered_json&)> callback;
     } mCmdCtx;
-    std::string mIp;
-    std::string mGwId;
-    std::string mDevId;
-    std::string mLocalKey;
+    const std::string mTag;
+    const std::string mIp;
+    const std::string mGwId;
+    const std::string mDevId;
+    const std::string mLocalKey;
     uint32_t mSeqNo;
     ordered_json mDps;
 };

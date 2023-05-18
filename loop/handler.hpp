@@ -15,40 +15,42 @@ class Handler {
     typedef std::function<int(Event)> EventCallback_t;
 
 public:
-    int handle(Event& e) {
-        int ret = 0;
+    void handle(Event& e) {
         EV_LOGD(e) << "handling " << std::string(e) << std::endl;;
 
         switch (e.type)
         {
+        case Event::CONNECTED:
+            handleConnected(dynamic_cast<ConnectedEvent&>(e));
+            break;
+        case Event::READABLE:
+            handleReadable(dynamic_cast<ReadableEvent&>(e));
+            break;
         case Event::READ:
-            ret = handleRead(dynamic_cast<ReadEvent&>(e));
+            handleRead(dynamic_cast<ReadEvent&>(e));
             break;
         case Event::CLOSING:
-            ret = handleClose(dynamic_cast<CloseEvent&>(e));
+            handleClose(dynamic_cast<CloseEvent&>(e));
             break;
         default:
             break;
         }
-
-        if (ret < 0)
-            EV_LOGW(e) << "cb() failed: " << ret << std::endl;
-
-        return ret;
     }
 
-    virtual int handleRead(ReadEvent& e) {
+    virtual void handleConnected(ConnectedEvent& e) {
+        EV_LOGI(e) << "fd is connected" << std::endl;
+    }
+
+    virtual void handleReadable(ReadableEvent& e) {
+        EV_LOGI(e) << "fd is readable" << std::endl;
+    }
+
+    virtual void handleRead(ReadEvent& e) {
         EV_LOGI(e) << "fd received data" << std::endl;
-        return 0;
     }
 
-    virtual int handleClose(CloseEvent& e) {
+    virtual void handleClose(CloseEvent& e) {
         EV_LOGI(e) << "fd is closing" << std::endl;
-        return 0;
-    }
-
-    virtual int heartBeat() {
-        return 0;
     }
 
 protected:
