@@ -4,15 +4,14 @@
 #include <arpa/inet.h>
 
 #include "device.hpp"
-#include "loop/loop.hpp"
-#include "loop/sockethandler.hpp"
+#include "loop/udpserverhandler.hpp"
 #include "protocol/message.hpp"
 
 namespace tuya {
 
-class Scanner : public SocketHandler {
+class Scanner : public UDPServerHandler {
 public:
-    Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : SocketHandler(loop, 6667) {
+    Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : UDPServerHandler(loop, 6667) {
         std::ifstream ifs(devicesFile);
         if (!ifs.is_open()) {
             throw std::runtime_error("Failed to open file");
