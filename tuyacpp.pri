@@ -8,6 +8,7 @@ HEADERS += \
     $$PWD/loop/handler.hpp \
     $$PWD/loop/sockethandler.hpp \
     $$PWD/loop/loop.hpp \
+    $$PWD/loop/tcpclienthandler.hpp \
     $$PWD/protocol/message.hpp \
     $$PWD/protocol/message55aa.hpp \
     $$PWD/logging.hpp \

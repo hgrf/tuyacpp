@@ -109,6 +109,7 @@ public:
         };
 
         int ret = select(++maxFd, &readFds, NULL, NULL, &tv);
+        LOGD() << "select done, " << ret << " fds readable" << std::endl;
         if (ret < 0) {
             LOGE() << "select() failed: " << ret << std::endl;
             return ret;

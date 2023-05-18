@@ -10,17 +10,17 @@
 #include <unistd.h>
 
 #include "loop/loop.hpp"
-#include "loop/sockethandler.hpp"
+#include "loop/tcpclienthandler.hpp"
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
 
 
 namespace tuya {
 
-class Device : public SocketHandler {
+class Device : public TCPClientHandler {
 public:
     Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
-        SocketHandler(loop, ip, 6668, key), mTag("DEVICE " + ip), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mSeqNo(1)
+        TCPClientHandler(loop, ip, 6668, key), mTag("DEVICE " + ip), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mSeqNo(1)
     {
     }
 
