@@ -4,18 +4,18 @@
 #include <string>
 
 #include "../logging.hpp"
+#include "../protocol/message.hpp"
 
 namespace tuya {
 
 class Event {
 public:
-    Event(const Event& other) : Event(other.fd, other.type, other.logLevel) {}
-
     enum Type : uint8_t {
         INVALID,
         CONNECTED,
         READABLE,
         READ,
+        MESSAGE,
         CLOSING,
     };
     const int fd;
@@ -28,6 +28,7 @@ public:
             {CONNECTED, "CONNECTED"},
             {READABLE, "READABLE"},
             {READ, "READ"},
+            {MESSAGE, "MESSAGE"},
             {CLOSING, "CLOSING"}
         };
         const auto& it = map.find(type);
@@ -72,6 +73,14 @@ public:
     const std::string &data;
 
     ReadEvent(int f, const std::string &d, const std::string &a, LogStream::Level l) : Event(f, Event::READ, l), addr(a), data(d) {}
+};
+
+class MessageEvent : public Event {
+public:
+    const std::string &addr;
+    const Message& msg;
+
+    MessageEvent(int f, const Message& m, const std::string& a, LogStream::Level l) : Event(f, Event::MESSAGE, l), addr(a), msg(m) {}
 };
 
 class CloseEvent : public Event {

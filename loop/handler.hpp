@@ -1,13 +1,9 @@
 #pragma once
 
-#include <list>
 #include <string>
-
-#include <arpa/inet.h>
 
 #include "event.hpp"
 #include "../logging.hpp"
-#include "../protocol/message55aa.hpp"
 
 namespace tuya {
 
@@ -29,6 +25,9 @@ public:
         case Event::READ:
             handleRead(dynamic_cast<ReadEvent&>(e));
             break;
+        case Event::MESSAGE:
+            handleMessage(dynamic_cast<MessageEvent&>(e));
+            break;
         case Event::CLOSING:
             handleClose(dynamic_cast<CloseEvent&>(e));
             break;
@@ -49,12 +48,20 @@ public:
         EV_LOGI(e) << "fd received data" << std::endl;
     }
 
+    virtual void handleMessage(MessageEvent& e) {
+        EV_LOGI(e) << "fd received message" << std::endl;
+    }
+
     virtual void handleClose(CloseEvent& e) {
         EV_LOGI(e) << "fd is closing" << std::endl;
     }
 
 protected:
     LOG_MEMBERS(HANDLER);
+    std::ostream& EV_LOGD(Event &e) { return e.log(TAG(), LogStream::DEBUG); }
+    std::ostream& EV_LOGI(Event &e) { return e.log(TAG(), LogStream::INFO); }
+    std::ostream& EV_LOGW(Event &e) { return e.log(TAG(), LogStream::WARNING); }
+    std::ostream& EV_LOGE(Event &e) { return e.log(TAG(), LogStream::ERROR); }
 };
 
 } // namespace tuya

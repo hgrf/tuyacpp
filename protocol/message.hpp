@@ -8,7 +8,6 @@
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
 
-#include "../loop/event.hpp"
 #include "../logging.hpp"
 
 namespace tuya {

@@ -50,17 +50,15 @@ public:
         return std::shared_ptr<Device>();
     }
 
-    virtual void handleRead(ReadEvent& e) override {
+    virtual void handleMessage(MessageEvent& e) override {
         if (e.fd != mSocketFd)
             return;
 
         /* ignore devices that are already registered */
-        if (mDevices.count(e.addr))
+        if (mDevices.count(e.addr)) {
+            EV_LOGD(e) << "ignoring known device " << e.addr << std::endl;
             return;
-
-        std::unique_ptr<Message> msg = parse(e.fd, e.data);
-        if (!msg->hasData())
-            return;
+        }
 
         /* register new device */
         auto dev = std::make_shared<Device>(mLoop, e.addr);

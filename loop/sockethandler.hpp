@@ -2,18 +2,17 @@
 
 #include "loop.hpp"
 
+#include <arpa/inet.h>
+
+#include "../protocol/message55aa.hpp"
+
 namespace tuya {
 
 class SocketHandler : public Handler {
     static const size_t BUFFER_SIZE = 1024;
 
 public:
-    SocketHandler(Loop& loop, const std::string& key) : mLoop(loop), mBuffer("\0", BUFFER_SIZE), mKey(key) {}
-
-    SocketHandler(Loop& loop) : SocketHandler(loop, Message::DEFAULT_KEY) {
-        /* register a promiscuous fd handler */
-        mLoop.attachExtra(this);
-    }
+    SocketHandler(Loop& loop, const std::string& key) : mLoop(loop), mSocketFd(-1), mBuffer("\0", BUFFER_SIZE), mKey(key) {}
 
     SocketHandler(Loop& loop, int port) : SocketHandler(loop, Message::DEFAULT_KEY) {
         int ret;
@@ -40,32 +39,6 @@ public:
 
         mLoop.attach(mSocketFd, this);
     };
-
-    virtual std::unique_ptr<Message> parse(int fd, const std::string& data) {
-        /* use the parser from the SocketHandler that specifically belongs to this FD
-         * so that the correct key is used for message decrypting
-         */
-        if (fd != mSocketFd) {
-            Handler* handler = mLoop.getHandler(fd);
-            SocketHandler* socketHandler = dynamic_cast<SocketHandler*>(handler);
-            if (socketHandler != nullptr)
-                return socketHandler->parse(fd, data);
-            else
-                return std::make_unique<Message55AA>(data, mKey, false);
-        }
-
-        if (data.length() < 2 * sizeof(uint32_t))
-            throw std::runtime_error("message too short");
-
-        uint32_t prefix = ntohl(*reinterpret_cast<const uint32_t*>(data.data()));
-        switch(prefix) {
-        case Message55AA::PREFIX:
-            return std::make_unique<Message55AA>(data, mKey, false);
-            break;
-        default:
-            throw std::runtime_error("unknown prefix");
-        }
-    }
 
     virtual int read(std::string& addrStr) {
         struct sockaddr_in addr;
@@ -96,7 +69,25 @@ public:
     }
 
     virtual void handleRead(ReadEvent& e) override {
-        EV_LOGI(e) << "socket received " << e.data.size() << " bytes" << std::endl;
+        if ((mSocketFd == -1) || (mSocketFd != e.fd))
+            return;
+
+        if (e.data.length() < 2 * sizeof(uint32_t))
+            throw std::runtime_error("message too short");
+
+        uint32_t prefix = ntohl(*reinterpret_cast<const uint32_t*>(e.data.data()));
+        switch(prefix) {
+        case Message55AA::PREFIX: {
+            Message55AA msg(e.data, mKey, false);
+            if (msg.hasData())
+                mLoop.handleEvent(MessageEvent(mSocketFd, msg, e.addr, e.logLevel));
+            else
+                EV_LOGE(e) << "failed to parse data in " << static_cast<std::string>(msg) << std::endl;
+            break;
+        }
+        default:
+            EV_LOGE(e) << "unknown prefix: 0x" << std::hex << prefix << std::dec << std::endl;
+        }
     }
 
     virtual void handleClose(CloseEvent& e) override {
@@ -104,9 +95,7 @@ public:
     }
 
     ~SocketHandler() {
-        if (mSocketFd == -1) {
-            mLoop.detachExtra(this);
-        } else {
+        if (mSocketFd >= 0) {
             mLoop.detach(mSocketFd);
             close(mSocketFd);
         }

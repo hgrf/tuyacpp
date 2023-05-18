@@ -33,6 +33,11 @@ public:
         EV_LOGI(e) << "connected to " << mIp << std::endl;
     }
 
+    virtual void handleClose(CloseEvent& e) override {
+        EV_LOGI(e) << mIp << " disconnected" << std::endl;
+        mLoop.pushWork([this] () { connectSocket(); });
+    }
+
     void connectSocket() {
         if (connect(mSocketFd, reinterpret_cast<struct sockaddr *>(&mAddr), sizeof(mAddr)) < 0) {
             LOGD() << "failed to connect, retry in " << RECONNECT_DELAY_MS << " ms" << std::endl;

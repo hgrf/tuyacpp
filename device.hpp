@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#include "loop/loop.hpp"
 #include "loop/tcpclienthandler.hpp"
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
@@ -50,27 +49,17 @@ public:
         return sendCommand(Message::CONTROL, ordered_json{{key, b}});
     }
 
-    virtual void handleRead(ReadEvent& e) override {
-        std::unique_ptr<Message> msg = parse(e.fd, e.data);
-        if (!msg->hasData()) {
-            EV_LOGE(e) << "failed to parse data in " << static_cast<std::string>(*msg) << std::endl;
-            return;
-        }
-
-        if ((msg->seqNo() == mCmdCtx.seqNo) && (msg->cmd() == static_cast<uint32_t>(mCmdCtx.command))) {
-            EV_LOGI(e) << "response to command from " << e.addr << ": " << static_cast<std::string>(*msg) << std::endl;
+    virtual void handleMessage(MessageEvent& e) {
+        const auto& msg = e.msg;
+        const auto& msgStr = static_cast<std::string>(msg);
+        if ((msg.seqNo() == mCmdCtx.seqNo) && (msg.cmd() == static_cast<uint32_t>(mCmdCtx.command))) {
+            EV_LOGI(e) << "response to command from " << e.addr << ": " << msgStr << std::endl;
             mCmdCtx.seqNo = 0;
             if (mCmdCtx.callback != nullptr)
-                mCmdCtx.callback(msg->data());
+                mCmdCtx.callback(msg.data());
         } else {
-            EV_LOGI(e) << "new message from " << e.addr << ": " << static_cast<std::string>(*msg) << std::endl;
+            EV_LOGI(e) << "new message from " << e.addr << ": " << msgStr << std::endl;
         }
-    }
-
-    virtual void handleClose(CloseEvent& e) override {
-        EV_LOGI(e) << mIp << " disconnected" << std::endl;
-
-        mLoop.pushWork([this] () { connectSocket(); });
     }
 
     int sendRaw(const std::string& message) {

@@ -75,10 +75,6 @@ private:
     LogStream& LOGD() { return LogStream::get(TAG(), LogStream::DEBUG); } \
     LogStream& LOGI() { return LogStream::get(TAG(), LogStream::INFO); } \
     LogStream& LOGW() { return LogStream::get(TAG(), LogStream::WARNING); } \
-    LogStream& LOGE() { return LogStream::get(TAG(), LogStream::ERROR); } \
-    std::ostream& EV_LOGD(Event &e) { return e.log(TAG(), LogStream::DEBUG); } \
-    std::ostream& EV_LOGI(Event &e) { return e.log(TAG(), LogStream::INFO); } \
-    std::ostream& EV_LOGW(Event &e) { return e.log(TAG(), LogStream::WARNING); } \
-    std::ostream& EV_LOGE(Event &e) { return e.log(TAG(), LogStream::ERROR); }
+    LogStream& LOGE() { return LogStream::get(TAG(), LogStream::ERROR); }
 
 }   // namespace tuya
