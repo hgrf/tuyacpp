@@ -2,12 +2,7 @@
 
 #include <fstream>
 #include <functional>
-#include <map>
-#include <unordered_map>
 #include <string>
-
-#include <arpa/inet.h>
-#include <unistd.h>
 
 #include "loop/tcpclienthandler.hpp"
 #include <nlohmann/json.hpp>
@@ -18,14 +13,16 @@ namespace tuya {
 
 class Device : public TCPClientHandler {
 public:
-    Device(Loop &loop, const std::string& ip, const std::string& gwId, const std::string& devId, const std::string& key) :
-        TCPClientHandler(loop, ip, 6668, key), mTag("DEVICE " + ip), mIp(ip), mGwId(gwId), mDevId(devId), mLocalKey(key), mSeqNo(1)
+    typedef std::function<void(const ordered_json&)> Callback_t;
+
+    Device(Loop &loop, const std::string& ip, const std::string& name, const std::string& gwId, const std::string& devId, const std::string& key) :
+        TCPClientHandler(loop, ip, 6668, key), mTag("DEVICE " + ip), mIp(ip), mName(name), mGwId(gwId), mDevId(devId), mLocalKey(key), mSeqNo(1)
     {
     }
 
     Device(Loop &loop, const std::string& ip) :
         // TODO: failure to look up will result in exception -> devices()[ip] should somehow return a default value (maybe device(ip)...)
-        Device(loop, ip, devices()[ip]["uuid"], devices()[ip]["id"], devices()[ip]["key"])
+        Device(loop, ip, devices()[ip]["name"], devices()[ip]["uuid"], devices()[ip]["id"], devices()[ip]["key"])
     {
     }
 
@@ -37,19 +34,28 @@ public:
         });
     }
 
-    int setOn(bool b) {
-        std::string key;
-        if (mDps.contains("20"))
-            key = "20";
-        else if (mDps.contains("1"))
-            key = "1";
-        else
-            return -EINVAL;
-
-        return sendCommand(Message::CONTROL, ordered_json{{key, b}});
+    bool isOn() {
+        const auto& key = switchKey();
+        if (key.length())
+            return mDps[key];
+        return false;
     }
 
-    virtual void handleMessage(MessageEvent& e) {
+    int setOn(bool b, Callback_t cb = nullptr) {
+        const auto& key = switchKey();
+        if (key.length())
+            return sendCommand(Message::CONTROL, ordered_json{{key, b}}, cb);
+        return -EINVAL;
+    }
+
+    int toggle(Callback_t cb = nullptr) {
+        const auto& key = switchKey();
+        if (key.length())
+            return sendCommand(Message::CONTROL, ordered_json{{key, !mDps[key]}}, cb);
+        return -EINVAL;
+    }
+
+    virtual void handleMessage(MessageEvent& e) override {
         const auto& msg = e.msg;
         const auto& msgStr = static_cast<std::string>(msg);
         if ((msg.seqNo() == mCmdCtx.seqNo) && (msg.cmd() == static_cast<uint32_t>(mCmdCtx.command))) {
@@ -77,7 +83,7 @@ public:
         return 0;
     }
 
-    int sendCommand(Message::Command command, const ordered_json& data = ordered_json(), std::function<void(const ordered_json&)> callback = nullptr) {
+    int sendCommand(Message::Command command, const ordered_json& data = ordered_json(), Callback_t callback = nullptr) {
         if (mCmdCtx.seqNo != 0) {
             LOGE() << "Command already in progress" << std::endl;
             return -EBUSY;
@@ -103,9 +109,13 @@ public:
         return mIp;
     }
 
+    const std::string& name() const {
+        return mName;
+    }
+
     operator std::string() const {
         std::ostringstream ss;
-        ss << "Device { gwId: " << mGwId << ", devId: " << mDevId
+        ss << "Device { name: " << mName << " gwId: " << mGwId << ", devId: " << mDevId
             << ", localKey: " << mLocalKey << " }";
         return ss.str();
     }
@@ -130,13 +140,22 @@ public:
 private:
     virtual const std::string& TAG() override { return mTag; };
 
+    std::string switchKey() {
+        if (mDps.contains("20"))
+            return "20";
+        else if (mDps.contains("1"))
+            return "1";
+        return "";
+    }
+
     struct {
         uint32_t seqNo = 0;
         Message::Command command;
-        std::function<void(const ordered_json&)> callback;
+        Callback_t callback;
     } mCmdCtx;
     const std::string mTag;
     const std::string mIp;
+    const std::string mName;
     const std::string mGwId;
     const std::string mDevId;
     const std::string mLocalKey;
