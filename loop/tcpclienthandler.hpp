@@ -8,10 +8,8 @@ class TCPClientHandler : public SocketHandler {
     const uint32_t RECONNECT_DELAY_MS = 3000;
 
 public:
-    TCPClientHandler(Loop& loop, const std::string& ip, int port, const std::string& key) : SocketHandler(loop, key), mIp(ip) {
-        memset(&mAddr, 0, sizeof(mAddr));
-        mAddr.sin_family = AF_INET;
-        mAddr.sin_port = htons(port);
+    TCPClientHandler(Loop& loop, const std::string& ip, int port, const std::string& key)
+        : SocketHandler(loop, key, port), mIp(ip) {
         if (inet_pton(mAddr.sin_family, ip.c_str(), &mAddr.sin_addr) <= 0) {
             throw std::runtime_error("Invalid address");
         }

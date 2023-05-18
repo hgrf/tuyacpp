@@ -12,26 +12,29 @@ class SocketHandler : public Handler {
     static const size_t BUFFER_SIZE = 1024;
 
 public:
-    SocketHandler(Loop& loop, const std::string& key) : mLoop(loop), mSocketFd(-1), mBuffer("\0", BUFFER_SIZE), mKey(key) {}
+    SocketHandler(Loop& loop, const std::string& key, int port)
+        : mLoop(loop), mSocketFd(-1), mBuffer("\0", BUFFER_SIZE), mKey(key) {
+        memset(&mAddr, 0, sizeof(mAddr));
+        mAddr.sin_family = AF_INET;
+        mAddr.sin_port = htons(port);
+    }
 
-    SocketHandler(Loop& loop, int port) : SocketHandler(loop, Message::DEFAULT_KEY) {
+    SocketHandler(Loop& loop, int port)
+        : SocketHandler(loop, Message::DEFAULT_KEY, port) {
         int ret;
+        int broadcast = 1;
+        mAddr.sin_addr.s_addr = INADDR_ANY;
 
         mSocketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (mSocketFd < 0) {
             throw std::runtime_error("Failed to create socket");
         }
         
-        int broadcast = 1;
         ret = setsockopt(mSocketFd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
         if (ret < 0) {
             throw std::runtime_error("Failed to setsockopt");
         }
 
-        memset(&mAddr, 0, sizeof(mAddr));
-        mAddr.sin_family = AF_INET;
-        mAddr.sin_addr.s_addr = INADDR_ANY;
-        mAddr.sin_port = htons(port);
         ret = bind(mSocketFd, (struct sockaddr *)&mAddr, sizeof(mAddr));
         if (ret < 0) {
             throw std::runtime_error("Failed to bind");
