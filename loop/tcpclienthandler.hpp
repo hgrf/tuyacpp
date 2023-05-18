@@ -5,8 +5,6 @@
 namespace tuya {
 
 class TCPClientHandler : public SocketHandler {
-    const uint32_t RECONNECT_DELAY_MS = 3000;
-
 public:
     TCPClientHandler(Loop& loop, const std::string& ip, int port, const std::string& key)
         : SocketHandler(loop, key, port), mIp(ip) {
@@ -32,21 +30,23 @@ public:
     }
 
     void connectSocket() {
+        int ret;
         mSocketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (mSocketFd < 0) {
             LOGE() << "failed to create socket" << std::endl;
-            mLoop.pushWork([this] () { connectSocket(); }, RECONNECT_DELAY_MS);
-            return;
-        }
-
-        if (connect(mSocketFd, reinterpret_cast<struct sockaddr *>(&mAddr), sizeof(mAddr)) < 0) {
-            LOGD() << "failed to connect, retry in " << RECONNECT_DELAY_MS << " ms" << std::endl;
-            mLoop.pushWork([this] () { connectSocket(); }, RECONNECT_DELAY_MS);
-            return;
+            ret = mSocketFd;
+        } else {
+            ret = connect(mSocketFd, reinterpret_cast<struct sockaddr *>(&mAddr), sizeof(mAddr));
+            if (ret < 0)
+                LOGD() << "failed to connect, retry in " << RECONNECT_DELAY_MS << " ms" << std::endl;
         } 
         
-        mLoop.attach(mSocketFd, this);
-        mLoop.handleEvent(ConnectedEvent(mSocketFd, LogStream::INFO));
+        if (ret >= 0) {
+            mLoop.attach(mSocketFd, this);
+            mLoop.handleEvent(ConnectedEvent(mSocketFd, LogStream::INFO));   
+        } else {
+            mLoop.pushWork([this] () { connectSocket(); }, RECONNECT_DELAY_MS);
+        }
     }
 
 private:

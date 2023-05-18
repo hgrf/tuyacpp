@@ -8,27 +8,35 @@ class UDPServerHandler : public SocketHandler {
 public:
     UDPServerHandler(Loop& loop, int port)
         : SocketHandler(loop, Message::DEFAULT_KEY, port) {
-        int ret;
-        int broadcast = 1;
         mAddr.sin_addr.s_addr = INADDR_ANY;
 
+        mLoop.pushWork([this] () { bindSocket(); });
+    };
+
+    void bindSocket() {
+        int ret;
+        int broadcast = 1;
         mSocketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (mSocketFd < 0) {
-            throw std::runtime_error("Failed to create socket");
-        }
-        
-        ret = setsockopt(mSocketFd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
-        if (ret < 0) {
-            throw std::runtime_error("Failed to setsockopt");
-        }
-
-        ret = bind(mSocketFd, (struct sockaddr *)&mAddr, sizeof(mAddr));
-        if (ret < 0) {
-            throw std::runtime_error("Failed to bind");
+            LOGE() << "failed to create socket" << std::endl;
+            ret = mSocketFd;
+        } else {
+            ret = setsockopt(mSocketFd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
+            if (ret < 0)
+                LOGE() << "failed to setsockopt" << std::endl;
         }
 
-        mLoop.attach(mSocketFd, this);
-    };
+        if (ret >= 0) {
+            ret = bind(mSocketFd, (struct sockaddr *)&mAddr, sizeof(mAddr));
+            if (ret < 0)
+                LOGE() << "failed to bind" << std::endl;
+        }
+
+        if (ret >= 0)
+            mLoop.attach(mSocketFd, this);
+        else
+            mLoop.pushWork([this] () { bindSocket(); }, RECONNECT_DELAY_MS);
+    }
 
     virtual int read(std::string& addrStr) override {
         struct sockaddr_in addr;

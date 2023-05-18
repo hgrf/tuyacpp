@@ -9,6 +9,8 @@
 namespace tuya {
 
 class SocketHandler : public Handler {
+protected:
+    static const uint32_t RECONNECT_DELAY_MS = 3000;
     static const size_t BUFFER_SIZE = 1024;
 
 public:
