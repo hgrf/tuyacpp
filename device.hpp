@@ -106,7 +106,7 @@ public:
         if (!data.is_null())
             payload["dps"] = data;
         std::unique_ptr<Message> msg = std::make_unique<Message55AA>(mCmdCtx.seqNo, command, payload);
-        LOGI() << "Sending command 0x" << std::hex << command << " with payload: " << payload.dump() << std::endl;
+        LOGI() << "Sending command 0x" << std::hex << command << std::dec << " with payload: " << payload.dump() << std::endl;
         return sendRaw(msg->serialize(mLocalKey, true));
     }
 
@@ -116,7 +116,7 @@ public:
 
     operator std::string() const {
         std::ostringstream ss;
-        ss << std::hex << "Device { gwId: " << mGwId << ", devId: " << mDevId
+        ss << "Device { gwId: " << mGwId << ", devId: " << mDevId
             << ", localKey: " << mLocalKey << " }";
         return ss.str();
     }

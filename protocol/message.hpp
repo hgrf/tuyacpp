@@ -36,7 +36,7 @@ public:
     operator std::string() const {
         std::ostringstream ss;
         ss << std::hex << "Message { prefix: 0x" << mPrefix << ", seqno: 0x" << mSeqNo
-           << ", cmd: 0x" << mCmd << ", data: " << mData << " }";
+           << ", cmd: 0x" << mCmd << std::dec << ", data: " << mData << " }";
         return ss.str();
     }
 
