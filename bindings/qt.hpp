@@ -16,11 +16,11 @@ class TuyaWorker : public QThread, public Handler {
 public:
     /* workaround to initialize mLoop before SocketHandler, which needs an initialized loop as argument */
     TuyaWorker() : mScanner(mLoop) {
-        mLoop.attachExtra(this);
+        mLoop.attach(this);
     }
 
     ~TuyaWorker() {
-        mLoop.detachExtra(this);
+        mLoop.detach(this);
     }
 
     tuya::Scanner& scanner() {

@@ -19,7 +19,7 @@ public:
         mKnownDevices = ordered_json::parse(ifs);
 
         /* attach to loop as promiscuous handler */
-        mLoop.attachExtra(this);
+        mLoop.attach(this);
 
         /* register all known devices */
         for (const auto& devDesc : mKnownDevices) {
@@ -29,7 +29,7 @@ public:
     }
 
     ~Scanner() {
-        mLoop.detachExtra(this);
+        mLoop.detach(this);
     }
 
     std::set<std::string> getDevices() {
@@ -63,15 +63,11 @@ public:
         auto dev = std::make_shared<Device>(mLoop, e.addr);
         EV_LOGI(e) << "new device discovered: " << static_cast<std::string>(*dev) << std::endl;
         mDevices[e.addr] = std::move(dev);
-
-        return;
     }
 
     virtual void handleClose(CloseEvent& e) override {
         EV_LOGI(e) << "device " << static_cast<std::string>(*mDevices[e.addr])
             << " disconnected" << std::endl;
-
-        return;
     }
 
 private:

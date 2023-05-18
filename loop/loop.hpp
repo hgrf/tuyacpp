@@ -31,11 +31,11 @@ public:
     Loop() {
     }
 
-    void attachExtra(Handler* handler) {
+    void attach(Handler* handler) {
         mExtraHandlers.insert(handler);
     }
 
-    void detachExtra(Handler* handler) {
+    void detach(Handler* handler) {
         mExtraHandlers.erase(handler);
     }
 
