@@ -53,7 +53,6 @@ public:
 
 protected:
     LOG_MEMBERS(HANDLER);
-    std::unique_ptr<Message> mMsg;
 };
 
 } // namespace tuya

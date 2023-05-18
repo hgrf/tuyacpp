@@ -15,6 +15,13 @@ namespace tuya {
 
 class Message {
 public:
+    enum Command {
+        CONTROL         = 0x07,
+        STATUS          = 0x08,
+        DP_QUERY        = 0x0a,
+        UDP_NEW         = 0x13,
+    };
+
     // md5(b"yGAdlopoPVldABfn").digest()
     static constexpr const char* DEFAULT_KEY = "l\x1e\xc8\xe2\xbb\x9b\xb5\x9a\xb5\x0b\r\xaf""d\x9b""A\n";
 
@@ -44,6 +51,14 @@ public:
 
     uint32_t prefix() const {
         return mPrefix;
+    }
+
+    uint32_t seqNo() const {
+        return mSeqNo;
+    }
+
+    uint32_t cmd() const {
+        return mCmd;
     }
 
     virtual std::string serialize(const std::string& key = DEFAULT_KEY, bool noRetCode = true) = 0;
@@ -84,7 +99,8 @@ protected:
         // TODO: padding operation should be symmetric with encrypt
         std::string err;
         std::string result = cipher;
-        int p_len = cipher.length(); // , f_len = 0;
+        int p_len = cipher.length();
+        int f_len = 0;
 
         EVP_CIPHER_CTX* de = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(de);
@@ -94,21 +110,15 @@ protected:
         if(!err.length() && EVP_DecryptUpdate(de, (unsigned char *) result.data(), &p_len, (const unsigned char *) cipher.data(), cipher.length()) != 1) {
             err = "EVP_DecryptUpdate failed";
         }
-        // if(EVP_DecryptFinal_ex(de, (unsigned char *) result.data() + p_len, &f_len) != 1) {
-        //     err = "EVP_DecryptFinal_ex failed";
-        // }
+        if(EVP_DecryptFinal_ex(de, (unsigned char *) result.data() + p_len, &f_len) != 1) {
+            err = "EVP_DecryptFinal_ex failed";
+        }
         EVP_CIPHER_CTX_free(de);
 
-        if(!err.length()) {
-            int padlen = result[p_len - 1];
-            if (padlen < 1 || padlen > 16) {
-                err = "Invalid padding length";
-            } else {
-                result.resize(p_len - padlen);
-            }
-        }
-
-        if (err.length()) {
+        p_len += f_len;
+        if (!err.length()) {
+            result.resize(p_len);
+        } else {
             result.clear();
             LOGE() << "decrypt() failed: " << err << std::endl;
         }
@@ -119,6 +129,7 @@ protected:
     uint32_t mPrefix;
     uint32_t mSeqNo;
     uint32_t mCmd;
+    uint32_t mRetCode;
     ordered_json mData;
 };
 

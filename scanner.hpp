@@ -31,19 +31,28 @@ public:
         return mDevices;
     }
 
-    virtual int handleRead(Event e, const std::string &ip, const ordered_json& data) override {
-        (void) data;
+    std::shared_ptr<Device> getDevice(const std::string& ip) {
+        if (mConnectedDevices.count(ip))
+            return mConnectedDevices.at(ip);
+        return std::shared_ptr<Device>();
+    }
+
+    virtual int handleRead(ReadEvent& e) override {
         if (e.fd != mSocketFd)
-            return SocketHandler::handleRead(e, ip, data);
+            return 0;
 
         /* ignore devices that are already registered */
-        if (mConnectedDevices.count(ip))
-            return SocketHandler::handleRead(e, ip, data);
+        if (mConnectedDevices.count(e.addr))
+            return 0;
+
+        std::unique_ptr<Message> msg = parse(e.fd, e.data);
+        if (!msg->hasData())
+            return 0;
 
         /* register new device */
-        auto dev = std::make_unique<Device>(mLoop, ip);
+        auto dev = std::make_shared<Device>(mLoop, e.addr);
         EV_LOGI(e) << "new device discovered: " << static_cast<std::string>(*dev) << std::endl;
-        mConnectedDevices[ip] = std::move(dev);
+        mConnectedDevices[e.addr] = std::move(dev);
 
         return 0;
     }
@@ -70,7 +79,7 @@ private:
 
     ordered_json mDevices;
 
-    std::map<std::string, std::unique_ptr<Device>> mConnectedDevices;
+    std::map<std::string, std::shared_ptr<Device>> mConnectedDevices;
     std::list<std::string> mDisconnectedList;
 };
 

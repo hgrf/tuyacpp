@@ -53,17 +53,18 @@ public:
             {24, "colour"},
         };
         const size_t headerLen = noRetCode ? (sizeof(Header) - sizeof(uint32_t)) : sizeof(Header);
-        const size_t footerLen = sizeof(Footer);
-        if (raw.length() < headerLen + footerLen)
+        if (raw.length() < headerLen + sizeof(Footer))
             throw std::runtime_error("message too short");
 
         const Header *header = reinterpret_cast<const Header *>(raw.data());
         mPrefix = ntohl(header->prefix);
         mSeqNo = ntohl(header->seqNo);
         mCmd = ntohl(header->cmd);
+        if (!noRetCode)
+            mRetCode = ntohl(header->retCode);
         uint32_t payloadLen = ntohl(header->payloadLen);
 
-        if (raw.length() != sizeof(Header) - sizeof(uint32_t) + payloadLen)
+        if (raw.length() != sizeof(Header) + payloadLen - sizeof(uint32_t))
             throw std::runtime_error("invalid message length");
 
         const Footer *footer = reinterpret_cast<const Footer *>(raw.data() + raw.length() - sizeof(Footer));
@@ -74,32 +75,38 @@ public:
         if (ntohl(footer->crc) != crc)
             throw std::runtime_error("invalid CRC");
 
-        auto result = decrypt(std::string(raw.data() + headerLen, payloadLen), key);
-        if (result.length())
-        {
-            try {
-                mData = ordered_json::parse(result);
-                if (mData.contains("dps")) {
-                    auto dps = mData["dps"];
-                    for (auto it = dps.begin(); it != dps.end(); ++it) {
-                        auto dpsString = dpsToString.find(std::stoi(it.key()));
-                        if (dpsString != dpsToString.end())
-                            mData[dpsString->second] = it.value();
+        const auto& payload = std::string(raw.data() + headerLen, payloadLen - sizeof(uint32_t) - sizeof(Footer));
+        if (payload.length()) {
+            auto result = decrypt(payload.substr(payloadPrefix().length()), key);
+            if (result.length()) {
+                try {
+                    mData = ordered_json::parse(result);
+                    if (mData.contains("dps")) {
+                        auto dps = mData["dps"];
+                        for (auto it = dps.begin(); it != dps.end(); ++it) {
+                            auto dpsString = dpsToString.find(std::stoi(it.key()));
+                            if (dpsString != dpsToString.end())
+                                mData[dpsString->second] = it.value();
+                        }
                     }
+                } catch (const ordered_json::parse_error& e) {
+                    LOGE() << "Failed to parse " << (const std::string&) *this << " payload: " << result << std::endl;
+                    mData = ordered_json();
                 }
-            } catch (const ordered_json::parse_error& e) {
-                LOGE() << "Failed to parse payload. Message: " << (const std::string&) *this << std::endl;
-                mData = ordered_json();
+            } else {
+                LOGE() << "Failed to decrypt " << (const std::string&) *this << " payload: " << payload << std::endl;
             }
+        } else {
+            mData = ordered_json::object();
         }
     }
 
-    std::string serialize(const std::string& key = DEFAULT_KEY, bool noRetCode = true) {
+   virtual std::string serialize(const std::string& key = DEFAULT_KEY, bool noRetCode = true) override {
         // TODO: demystify the three different payloadLen...
 
         std::string result;
 
-        std::string payload = encrypt(mData.dump(), key);
+        std::string payload = payloadPrefix() + encrypt(mData.dump(), key);
         const uint32_t payloadLen = payload.length() + (noRetCode ? 0 : 4);
 
         auto header = std::make_unique<Header>();
@@ -122,6 +129,17 @@ public:
     }
 
 private:
+    std::string payloadPrefix() {
+        static const char PREFIX_VER_3_3[] = "3.3\0\0\0\0\0\0\0\0\0\0\0\0";
+
+        switch(mCmd) {
+        case DP_QUERY:
+        case UDP_NEW:
+            return "";
+        default:
+            return std::string(PREFIX_VER_3_3, sizeof(PREFIX_VER_3_3) - 1);
+        }
+    }
 };
 
 } // namespace tuya

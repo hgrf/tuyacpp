@@ -84,17 +84,6 @@ public:
         }
     }
 
-    virtual int handleRead(Event e, const std::string& ip, const ordered_json& data) {
-        EV_LOGI(e) << "received message from " << ip << ": " << data << std::endl;
-        return 0;
-    }
-
-    virtual int handleRead(ReadEvent& e) override {
-        EV_LOGD(e) << "parsing " << e.data.size() << " bytes" << std::endl;
-        mMsg = parse(e.fd, e.data);
-        return mMsg->hasData() ? handleRead(e, e.addr, mMsg->data()) : 0;
-    }
-
     virtual int handleClose(CloseEvent& e) override {
         if ((mSocketFd != -1) && (e.fd == mSocketFd)) {
             EV_LOGW(e) << "socket closed" << std::endl;
