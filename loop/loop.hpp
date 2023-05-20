@@ -1,5 +1,6 @@
 #pragma once
 
+#include <list>
 #include <map>
 #include <queue>
 #include <set>
@@ -50,6 +51,17 @@ public:
         return 0;
     }
 
+    int attachWritable(int fd, Handler* handler) {
+        if (mWritableHandlers.count(fd)) {
+            LOGE() << "fd " << fd << " already registered" << std::endl;
+            return -EALREADY;
+        }
+
+        mWritableHandlers[fd] = handler;
+
+        return 0;
+    }
+
     int detach(int fd) {
         if (!mHandlers.count(fd))
             return -ENOENT;
@@ -94,8 +106,11 @@ public:
         timeoutMs = (delayMs < (int) timeoutMs) ? delayMs : timeoutMs;
 
         fd_set readFds;
+        fd_set writeFds;
         FD_ZERO(&readFds);
+        FD_ZERO(&writeFds);
         int maxFd = 0;
+        int maxWritableFd = 0;
 
         for (const auto &it : mHandlers) {
             FD_SET(it.first, &readFds);
@@ -103,12 +118,19 @@ public:
                 maxFd = it.first;
         }
 
+        for (const auto &it : mWritableHandlers) {
+            FD_SET(it.first, &writeFds);
+            if (it.first > maxFd)
+                maxWritableFd = it.first;
+        }
+        maxFd = (maxWritableFd > maxFd) ? maxWritableFd : maxFd;
+
         struct timeval tv = {
             .tv_sec = timeoutMs / 1000,
             .tv_usec = (timeoutMs % 1000 ) * 1000,
         };
 
-        int ret = select(++maxFd, &readFds, NULL, NULL, &tv);
+        int ret = select(++maxFd, &readFds, &writeFds, NULL, &tv);
         LOGD() << "select done, " << ret << " fds readable" << std::endl;
         if (ret < 0) {
             LOGE() << "select() failed: " << ret << std::endl;
@@ -117,11 +139,20 @@ public:
             /* read data from all readable FDs */
             for (const auto &it : mHandlers) {
                 const auto &fd = it.first;
-                if (!FD_ISSET(fd, &readFds))
-                    continue;
-
-                handleEvent(ReadableEvent(fd, logLevel));
+                if (FD_ISSET(fd, &readFds))
+                    handleEvent(ReadableEvent(fd, logLevel));
             }
+            std::list<int> removeList;
+            for (const auto &it : mWritableHandlers) {
+                const auto &fd = it.first;
+                if (FD_ISSET(fd, &writeFds)) {
+                    WritableEvent e(fd, logLevel);
+                    mWritableHandlers[fd]->handle(e);
+                    removeList.push_back(fd);
+                }
+            }
+            for (int fd : removeList)
+                mWritableHandlers.erase(fd);
         }
 
         return 0;
@@ -132,6 +163,7 @@ private:
 
     std::priority_queue<DelayedWork, std::vector<DelayedWork>, OrderByDeadline> mWork;
     std::map<int, Handler*> mHandlers;
+    std::map<int, Handler*> mWritableHandlers;
     std::set<Handler*> mExtraHandlers;
 };
 

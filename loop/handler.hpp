@@ -22,6 +22,9 @@ public:
         case Event::READABLE:
             handleReadable(dynamic_cast<ReadableEvent&>(e));
             break;
+        case Event::WRITABLE:
+            handleWritable(dynamic_cast<WritableEvent&>(e));
+            break;
         case Event::READ:
             handleRead(dynamic_cast<ReadEvent&>(e));
             break;
@@ -42,6 +45,10 @@ public:
 
     virtual void handleReadable(ReadableEvent& e) {
         EV_LOGD(e) << "fd is readable" << std::endl;
+    }
+
+    virtual void handleWritable(WritableEvent& e) {
+        EV_LOGD(e) << "fd is writable" << std::endl;
     }
 
     virtual void handleRead(ReadEvent& e) {

@@ -14,6 +14,7 @@ public:
         INVALID,
         CONNECTED,
         READABLE,
+        WRITABLE,
         READ,
         MESSAGE,
         CLOSING,
@@ -27,6 +28,7 @@ public:
             {INVALID, "INVALID"},
             {CONNECTED, "CONNECTED"},
             {READABLE, "READABLE"},
+            {WRITABLE, "WRITABLE"},
             {READ, "READ"},
             {MESSAGE, "MESSAGE"},
             {CLOSING, "CLOSING"}
@@ -65,6 +67,11 @@ public:
 class ReadableEvent : public Event {
 public:
     ReadableEvent(int f, LogStream::Level l) : Event(f, Event::READABLE, l) {}
+};
+
+class WritableEvent : public Event {
+public:
+    WritableEvent(int f, LogStream::Level l) : Event(f, Event::WRITABLE, l) {}
 };
 
 class ReadEvent : public Event {
