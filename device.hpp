@@ -13,7 +13,12 @@ namespace tuya {
 
 class Device : public TCPClientHandler {
 public:
-    typedef std::function<void(const ordered_json&)> Callback_t;
+    enum CommandStatus {
+        CMD_OK,
+        CMD_ERR_DISCONNECTED,
+    };
+
+    typedef std::function<void(CommandStatus, const ordered_json&)> Callback_t;
 
     Device(Loop &loop, const std::string& ip, const std::string& name, const std::string& gwId, const std::string& devId, const std::string& key) :
         TCPClientHandler(loop, ip, 6668, key), mTag("DEVICE " + ip), mIp(ip), mName(name), mGwId(gwId), mDevId(devId), mLocalKey(key), mSeqNo(1)
@@ -28,9 +33,13 @@ public:
 
     virtual void handleConnected(ConnectedEvent& e) override {
         EV_LOGI(e) << "connected" << std::endl;
-        sendCommand(Message::DP_QUERY, ordered_json(), [this](const ordered_json& data) {
-            LOGI() << "got response to DP_QUERY: " << data << std::endl;
-            mDps = data["dps"];
+        sendCommand(Message::DP_QUERY, ordered_json(), [this](CommandStatus status, const ordered_json& data) {
+            if (status == CMD_OK) {
+                LOGI() << "got response to DP_QUERY: " << data << std::endl;
+                mDps = data["dps"];
+            } else {
+                LOGE() << "command failed, error " << status;
+            }
         });
     }
 
@@ -62,9 +71,21 @@ public:
             EV_LOGI(e) << "response to command from " << e.addr << ": " << msgStr << std::endl;
             mCmdCtx.seqNo = 0;
             if (mCmdCtx.callback != nullptr)
-                mCmdCtx.callback(msg.data());
+                mCmdCtx.callback(CMD_OK, msg.data());
+        } else if (msg.cmd() == Message::STATUS) {
+            mDps.update(msg.data()["dps"]);
         } else {
             EV_LOGI(e) << "new message from " << e.addr << ": " << msgStr << std::endl;
+        }
+    }
+
+    virtual void handleClose(CloseEvent& e) override {
+        TCPClientHandler::handleClose(e);
+
+        if (mCmdCtx.seqNo) {
+            mCmdCtx.seqNo = 0;
+            if (mCmdCtx.callback != nullptr)
+                mCmdCtx.callback(CMD_ERR_DISCONNECTED, ordered_json());
         }
     }
 

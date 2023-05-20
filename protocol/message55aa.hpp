@@ -38,7 +38,7 @@ public:
         Message(PREFIX, seqNo, cmd, data) {
     }
 
-    Message55AA(const std::string& raw, const std::string& key = DEFAULT_KEY, bool noRetCode = false) :
+    Message55AA(const std::string& raw, uint32_t& parsedSize, const std::string& key = DEFAULT_KEY, bool noRetCode = false) :
         Message(0, 0, 0, ordered_json{{}}) {
         static const std::map<int, const std::string> dpsToString = {
             {1, "is_on"},
@@ -63,18 +63,20 @@ public:
         if (!noRetCode)
             mRetCode = ntohl(header->retCode);
         uint32_t payloadLen = ntohl(header->payloadLen);
+        uint32_t dataLen = sizeof(Header) + payloadLen - sizeof(uint32_t);
 
-        if (raw.length() != sizeof(Header) + payloadLen - sizeof(uint32_t))
-            throw std::runtime_error("invalid message length");
+        if (raw.length() < dataLen)
+            throw std::runtime_error("not enough data");
 
-        const Footer *footer = reinterpret_cast<const Footer *>(raw.data() + raw.length() - sizeof(Footer));
+        const Footer *footer = reinterpret_cast<const Footer *>(raw.data() + dataLen - sizeof(Footer));
         if (ntohl(footer->suffix) != SUFFIX)
             throw std::runtime_error("invalid suffix");
 
-        uint32_t crc = CRC::Calculate(raw.data(), raw.length() - sizeof(Footer), CRC::CRC_32());
+        uint32_t crc = CRC::Calculate(raw.data(), dataLen - sizeof(Footer), CRC::CRC_32());
         if (ntohl(footer->crc) != crc)
             throw std::runtime_error("invalid CRC");
 
+        parsedSize = dataLen;
         const auto& payload = std::string(raw.data() + headerLen, payloadLen - sizeof(uint32_t) - sizeof(Footer));
         if (payload.length()) {
             auto result = decrypt(payload.substr(payloadPrefix().length()), key);

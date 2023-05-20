@@ -37,23 +37,23 @@ public:
     }
 
     virtual void handleConnected(ConnectedEvent& e) {
-        EV_LOGI(e) << "fd is connected" << std::endl;
+        EV_LOGD(e) << "fd is connected" << std::endl;
     }
 
     virtual void handleReadable(ReadableEvent& e) {
-        EV_LOGI(e) << "fd is readable" << std::endl;
+        EV_LOGD(e) << "fd is readable" << std::endl;
     }
 
     virtual void handleRead(ReadEvent& e) {
-        EV_LOGI(e) << "fd received data" << std::endl;
+        EV_LOGD(e) << "fd received data" << std::endl;
     }
 
     virtual void handleMessage(MessageEvent& e) {
-        EV_LOGI(e) << "fd received message" << std::endl;
+        EV_LOGD(e) << "fd received message" << std::endl;
     }
 
     virtual void handleClose(CloseEvent& e) {
-        EV_LOGI(e) << "fd is closing" << std::endl;
+        EV_LOGD(e) << "fd is closing" << std::endl;
     }
 
 protected:

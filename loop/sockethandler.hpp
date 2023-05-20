@@ -49,11 +49,18 @@ public:
         uint32_t prefix = ntohl(*reinterpret_cast<const uint32_t*>(e.data.data()));
         switch(prefix) {
         case Message55AA::PREFIX: {
-            Message55AA msg(e.data, mKey, false);
-            if (msg.hasData())
-                mLoop.handleEvent(MessageEvent(mSocketFd, msg, e.addr, e.logLevel));
-            else
-                EV_LOGE(e) << "failed to parse data in " << static_cast<std::string>(msg) << std::endl;
+            /* check for remaining messages in buffer */
+            uint32_t parsedLen = 0;
+            uint32_t rawLen = e.data.length();
+            while (parsedLen < rawLen) {
+                uint32_t stepParsedLen = 0;
+                Message55AA msg(e.data.substr(parsedLen), stepParsedLen, mKey, false);
+                if (msg.hasData())
+                    mLoop.handleEvent(MessageEvent(mSocketFd, msg, e.addr, e.logLevel));
+                else
+                    EV_LOGE(e) << "failed to parse data in " << static_cast<std::string>(msg) << std::endl;
+                parsedLen += stepParsedLen;
+            }
             break;
         }
         default:
