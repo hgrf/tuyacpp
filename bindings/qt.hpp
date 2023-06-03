@@ -31,12 +31,10 @@ public:
         const auto& qip = QString::fromStdString(e.addr);
         if (e.fd == mScanner.fd()) {
             emit deviceDiscovered(qip);
-            return;
         } else {
             const auto& doc = QJsonDocument::fromJson(QByteArray::fromStdString(e.msg.data().dump()));
             emit newDeviceData(qip, doc);
         }
-        return;
     }
 
     virtual void run() override {
