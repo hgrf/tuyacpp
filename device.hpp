@@ -122,6 +122,12 @@ public:
             payload["dps"] = data;
         std::unique_ptr<Message> msg = std::make_unique<Message55AA>(mCmdCtx.seqNo, command, payload);
         LOGI() << "sending command " << msg->cmdString() << " with payload: " << payload.dump() << std::endl;
+        mLoop.pushWork([this, seqno=mCmdCtx.seqNo] () {
+            if (mCmdCtx.seqNo == seqno) {
+                LOGE() << "timeout" << std::endl;
+                mLoop.handleEvent(CloseEvent(mSocketFd, mIp, LogStream::INFO));
+            }
+        }, 3000);
         return sendRaw(msg->serialize(mLocalKey, true));
     }
 
