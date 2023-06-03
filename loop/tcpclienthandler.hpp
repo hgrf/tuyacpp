@@ -50,19 +50,47 @@ public:
     }
 
     void connectSocket() {
-        int ret;
+        int ret = 0;
         mSocketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (mSocketFd < 0) {
             LOGE() << "failed to create socket" << std::endl;
             ret = mSocketFd;
         } else {
-            fcntl(mSocketFd, F_SETFL, O_NONBLOCK);
-            mLoop.attachWritable(mSocketFd, this);
+            ret = setSocketBlockingEnabled(false);
+            if (ret < 0)
+                LOGE() << "failed to set socket non-blocking" << std::endl;
+
+        }
+
+        if (ret == 0) {
+            ret = mLoop.attachWritable(mSocketFd, this);
+            if (ret < 0)
+                LOGE() << "failed to attach to loop" << std::endl;
+
+        }
+
+        if (ret == 0) {
             ret = connect(mSocketFd, reinterpret_cast<struct sockaddr *>(&mAddr), sizeof(mAddr));
+            if (ret != -1)
+                LOGE() << "failed to connecct" << std::endl;
+        }
+
+        if (ret != -1) {
+            close(mSocketFd);
+            mLoop.pushWork([this] () { connectSocket(); }, RECONNECT_DELAY_MS);
         }
     }
 
 private:
+    int setSocketBlockingEnabled(bool blocking)
+    {
+       int flags = fcntl(mSocketFd, F_GETFL, 0);
+       if (flags == -1)
+           return -1;
+       flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+       return fcntl(mSocketFd, F_SETFL, flags);
+    }
+
     const std::string mIp;
 };
 
