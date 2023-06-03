@@ -27,6 +27,16 @@ public:
         return mScanner;
     }
 
+    virtual void handleClose(CloseEvent& e) override {
+        const auto& qip = QString::fromStdString(e.addr);
+        emit deviceDisconnected(qip);
+    }
+
+    virtual void handleConnected(ConnectedEvent& e) override {
+        const auto& qip = QString::fromStdString(e.addr);
+        emit deviceConnected(qip);
+    }
+
     virtual void handleMessage(MessageEvent& e) override {
         const auto& qip = QString::fromStdString(e.addr);
         if (e.fd == mScanner.fd()) {
@@ -49,6 +59,8 @@ public:
     }
 
 signals:
+    void deviceConnected(QString ip);
+    void deviceDisconnected(QString ip);
     void deviceDiscovered(QString ip);
     void newDeviceData(QString ip, QJsonDocument data);
 
