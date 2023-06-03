@@ -35,10 +35,9 @@ public:
         EV_LOGI(e) << "connected" << std::endl;
         sendCommand(Message::DP_QUERY, ordered_json(), [this](CommandStatus status, const ordered_json& data) {
             if (status == CMD_OK) {
-                LOGI() << "got response to DP_QUERY: " << data << std::endl;
                 mDps = data["dps"];
             } else {
-                LOGE() << "command failed, error " << status;
+                LOGE() << "command failed, error " << status << std::endl;
             }
         });
     }
@@ -68,7 +67,7 @@ public:
         const auto& msg = e.msg;
         const auto& msgStr = static_cast<std::string>(msg);
         if ((msg.seqNo() == mCmdCtx.seqNo) && (msg.cmd() == static_cast<uint32_t>(mCmdCtx.command))) {
-            EV_LOGI(e) << "response to command from " << e.addr << ": " << msgStr << std::endl;
+            EV_LOGI(e) << "response to command " << msg.cmdString() << " from " << e.addr << ": " << msgStr << std::endl;
             mCmdCtx.seqNo = 0;
             if (mCmdCtx.callback != nullptr)
                 mCmdCtx.callback(CMD_OK, msg.data());
@@ -92,10 +91,10 @@ public:
     int sendRaw(const std::string& message) {
         int ret = send(mSocketFd, message.data(), message.length(), 0);
         if (ret <= 0) {
-            std::cerr << "Failed to send message" << std::endl;
+            LOGE() << "failed to send message" << std::endl;
             return -1;
         } else if ((unsigned) ret != message.length()) {
-            std::cerr << "Failed to send message" << std::endl;
+            LOGE() << "failed to send message" << std::endl;
             return -1;
         }
 
@@ -122,7 +121,7 @@ public:
         if (!data.is_null())
             payload["dps"] = data;
         std::unique_ptr<Message> msg = std::make_unique<Message55AA>(mCmdCtx.seqNo, command, payload);
-        LOGI() << "Sending command 0x" << std::hex << command << std::dec << " with payload: " << payload.dump() << std::endl;
+        LOGI() << "sending command " << msg->cmdString() << " with payload: " << payload.dump() << std::endl;
         return sendRaw(msg->serialize(mLocalKey, true));
     }
 

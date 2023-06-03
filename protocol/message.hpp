@@ -60,6 +60,20 @@ public:
         return mCmd;
     }
 
+    const std::string& cmdString() const {
+        static const std::map<Command, const std::string> cmdToString = {
+            { Command::CONTROL, "CONTROL" },
+            { Command::DP_QUERY, "DP_QUERY" },
+            { Command::STATUS, "STATUS" },
+            { Command::UDP_NEW, "UDP_NEW" },
+        };
+        static const std::string unknownCommand = "UNKNOWN";
+        auto it = cmdToString.find(static_cast<Command>(mCmd));
+        if (it != cmdToString.end())
+            return it->second;
+        return unknownCommand;
+    }
+
     virtual std::string serialize(const std::string& key = DEFAULT_KEY, bool noRetCode = true) = 0;
 
 protected:
