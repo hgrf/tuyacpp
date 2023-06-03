@@ -61,7 +61,9 @@ private:
 
 class ConnectedEvent : public Event {
 public:
-    ConnectedEvent(int f, LogStream::Level l) : Event(f, Event::CONNECTED, l) {}
+    const std::string &addr;
+
+    ConnectedEvent(int f, const std::string& a, LogStream::Level l) : Event(f, Event::CONNECTED, l), addr(a) {}
 };
 
 class ReadableEvent : public Event {

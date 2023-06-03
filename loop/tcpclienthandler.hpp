@@ -29,11 +29,14 @@ public:
         getsockopt(mSocketFd, SOL_SOCKET, SO_ERROR, &so_error, &len);
 
         if (so_error == 0) {
-            mLoop.attach(mSocketFd, this);
-            mLoop.handleEvent(ConnectedEvent(mSocketFd, e.logLevel));
+            if (mLoop.attach(mSocketFd, this)) {
+                LOGE() << "failed to attach to loop" << std::endl;
+            } else {
+                mLoop.handleEvent(ConnectedEvent(mSocketFd, mIp, e.logLevel));
+            }
         } else {
-            EV_LOGD(e) << "failed to connect, retry in " << RECONNECT_DELAY_MS << " ms" << std::endl;
-            mLoop.pushWork([this] () { connectSocket(); });
+            EV_LOGW(e) << "failed to connect, retry in " << RECONNECT_DELAY_MS << " ms" << std::endl;
+            mLoop.pushWork([this] () { connectSocket(); }, RECONNECT_DELAY_MS);
         }
     }
 
