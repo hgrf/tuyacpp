@@ -89,6 +89,11 @@ public:
     }
 
     int sendRaw(const std::string& message) {
+        if (!isConnected()) {
+            LOGE() << "failed to send message: not connected" << std::endl;
+            return -ENOTCONN;
+        }
+
         int ret = send(mSocketFd, message.data(), message.length(), 0);
         if (ret <= 0) {
             LOGE() << "failed to send message" << std::endl;
