@@ -52,6 +52,13 @@ public:
         return -EINVAL;
     }
 
+    int setBrightness(int brightness, Callback_t cb = nullptr) {
+        const auto& key = brightnessKey();
+        if (key.length())
+            return sendCommand(Message::CONTROL, ordered_json{{key, brightness}}, cb);
+        return -EINVAL;
+    }
+
     virtual void handleMessage(MessageEvent& e) override {
         const auto& msg = e.msg;
         const auto& msgStr = static_cast<std::string>(msg);
@@ -89,6 +96,10 @@ public:
         }
     }
 
+    /* sendRaw() can be called from outside the loop thread because only read operations
+     * are performed in the loop thread and socket read and write operations are
+     * independent
+     */
     int sendRaw(const std::string& message) {
         if (!isConnected()) {
             LOGE() << "failed to send message: not connected" << std::endl;
@@ -177,6 +188,14 @@ private:
             return "20";
         else if (mDps.contains("1"))
             return "1";
+        return "";
+    }
+
+    std::string brightnessKey() {
+        if (mDps.contains("22"))
+            return "22";
+        else if (mDps.contains("3"))
+            return "3";
         return "";
     }
 
