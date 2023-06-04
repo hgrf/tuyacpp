@@ -9,7 +9,7 @@ namespace tuya {
 class TCPClientHandler : public SocketHandler {
 public:
     TCPClientHandler(Loop& loop, const std::string& ip, int port, const std::string& key)
-        : SocketHandler(loop, key, port), mIp(ip) {
+        : SocketHandler(loop, key, port), mIp(ip), mIsConnected(false) {
         if (inet_pton(mAddr.sin_family, ip.c_str(), &mAddr.sin_addr) <= 0) {
             throw std::runtime_error("Invalid address");
         }
@@ -42,10 +42,14 @@ public:
 
     virtual void handleConnected(ConnectedEvent& e) override {
         EV_LOGI(e) << "connected to " << mIp << std::endl;
+        mIsConnected = true;
     }
 
     virtual void handleClose(CloseEvent& e) override {
         EV_LOGI(e) << mIp << " disconnected" << std::endl;
+        mIsConnected = false;
+        close(mSocketFd);
+        mLoop.detach(mSocketFd);
         mLoop.pushWork([this] () { connectSocket(); });
     }
 
@@ -72,13 +76,17 @@ public:
         if (ret == 0) {
             ret = connect(mSocketFd, reinterpret_cast<struct sockaddr *>(&mAddr), sizeof(mAddr));
             if (ret != -1)
-                LOGE() << "failed to connecct" << std::endl;
+                LOGE() << "failed to connect" << std::endl;
         }
 
         if (ret != -1) {
             close(mSocketFd);
             mLoop.pushWork([this] () { connectSocket(); }, RECONNECT_DELAY_MS);
         }
+    }
+
+    bool isConnected() const {
+        return mIsConnected;
     }
 
 private:
@@ -92,6 +100,7 @@ private:
     }
 
     const std::string mIp;
+    bool mIsConnected;
 };
 
 } // namespace tuya

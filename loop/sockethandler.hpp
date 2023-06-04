@@ -32,9 +32,9 @@ public:
         if (ret > 0) {
             mLoop.handleEvent(ReadEvent(mSocketFd, mBuffer.substr(0, ret), addr, e.logLevel));
         } else {
+            EV_LOGW(e) << "read failed, closing connection" << std::endl;
             mLoop.pushWork([this, addr, l=e.logLevel] () {
                 mLoop.handleEvent(CloseEvent(mSocketFd, addr, l));
-                mLoop.detach(mSocketFd);
             });
         }
     }
