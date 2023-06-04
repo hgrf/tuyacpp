@@ -31,17 +31,6 @@ public:
     {
     }
 
-    virtual void handleConnected(ConnectedEvent& e) override {
-        EV_LOGI(e) << "connected" << std::endl;
-        sendCommand(Message::DP_QUERY, ordered_json(), [this](CommandStatus status, const ordered_json& data) {
-            if (status == CMD_OK) {
-                mDps = data["dps"];
-            } else {
-                LOGE() << "command failed, error " << status << std::endl;
-            }
-        });
-    }
-
     bool isOn() {
         const auto& key = switchKey();
         if (key.length())
@@ -76,6 +65,18 @@ public:
         } else {
             EV_LOGI(e) << "new message from " << e.addr << ": " << msgStr << std::endl;
         }
+    }
+
+    virtual void handleConnected(ConnectedEvent& e) override {
+        TCPClientHandler::handleConnected(e);
+
+        sendCommand(Message::DP_QUERY, ordered_json(), [this](CommandStatus status, const ordered_json& data) {
+            if (status == CMD_OK) {
+                mDps = data["dps"];
+            } else {
+                LOGE() << "command failed, error " << status << std::endl;
+            }
+        });
     }
 
     virtual void handleClose(CloseEvent& e) override {
