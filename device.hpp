@@ -59,6 +59,13 @@ public:
         return -EINVAL;
     }
 
+    int setColorTemp(int colorTemp, Callback_t cb = nullptr) {
+        const auto& key = colorTempKey();
+        if (key.length())
+            return sendCommand(Message::CONTROL, ordered_json{{key, colorTemp}}, cb);
+        return -EINVAL;
+    }
+
     virtual void handleMessage(MessageEvent& e) override {
         const auto& msg = e.msg;
         const auto& msgStr = static_cast<std::string>(msg);
@@ -185,7 +192,15 @@ public:
             return 1000;
         else if (mDps.contains("2"))
             return 255;
-        return 0;
+        return 1;
+    }
+
+    int colorTempScale() {
+        if (mDps.contains("23"))
+            return 1000;
+        else if (mDps.contains("3"))
+            return 255;
+        return 1;
     }
 
 private:
@@ -204,6 +219,14 @@ private:
             return "22";
         else if (mDps.contains("2"))
             return "2";
+        return "";
+    }
+
+    std::string colorTempKey() {
+        if (mDps.contains("23"))
+            return "23";
+        else if (mDps.contains("3"))
+            return "3";
         return "";
     }
 
