@@ -183,7 +183,7 @@ public:
     int brightnessScale() {
         if (mDps.contains("22"))
             return 1000;
-        else if (mDps.contains("3"))
+        else if (mDps.contains("2"))
             return 255;
         return 0;
     }
@@ -202,8 +202,8 @@ private:
     std::string brightnessKey() {
         if (mDps.contains("22"))
             return "22";
-        else if (mDps.contains("3"))
-            return "3";
+        else if (mDps.contains("2"))
+            return "2";
         return "";
     }
 

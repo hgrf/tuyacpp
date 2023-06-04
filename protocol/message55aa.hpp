@@ -42,10 +42,10 @@ public:
         Message(0, 0, 0, ordered_json{{}}) {
         static const std::map<int, const std::string> dpsToString = {
             {1, "is_on"},
-            {2, "mode"},
-            {3, "brightness"},
-            {4, "colourtemp"},
-            {5, "colour"},
+            {2, "brightness"}, // {2, "mode"},
+            {3, "colourtemp"}, // {3, "brightness"},
+            // {4, "colourtemp"},
+            // {5, "colour"},
             {20, "is_on"},
             {21, "mode"},
             {22, "brightness"},
