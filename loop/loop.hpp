@@ -95,9 +95,10 @@ public:
             const auto& delay = nextWork.deadline - std::chrono::steady_clock::now();
             delayMs = std::chrono::duration_cast<std::chrono::milliseconds>(delay).count();
             if (delayMs <= 0) {
-                LOGD() << "executing scheduled work" << std::endl;
+                LOGD() << "executing scheduled work with deadline " << (-delayMs) << " ms ago" << std::endl;
                 nextWork.work();
                 mWork.pop();
+                delayMs = timeoutMs;
             } else {
                 LOGD() << "work scheduled in " << delayMs << " ms" << std::endl;
                 break;

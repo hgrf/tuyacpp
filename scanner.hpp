@@ -66,7 +66,7 @@ public:
     }
 
     virtual void handleClose(CloseEvent& e) override {
-        EV_LOGI(e) << "device " << static_cast<std::string>(*mDevices[e.addr])
+        EV_LOGI(e) << static_cast<std::string>(*mDevices[e.addr])
             << " disconnected" << std::endl;
     }
 
