@@ -11,7 +11,7 @@ namespace tuya {
 
 class Scanner : public UDPServerHandler {
 public:
-    Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : UDPServerHandler(loop, 6667) {
+    Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : UDPServerHandler(loop, 6667, false) {
         std::ifstream ifs(devicesFile);
         if (!ifs.is_open()) {
             throw std::runtime_error("Failed to open file");

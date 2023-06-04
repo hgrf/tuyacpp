@@ -6,8 +6,8 @@ namespace tuya {
 
 class UDPServerHandler : public SocketHandler {
 public:
-    UDPServerHandler(Loop& loop, int port)
-        : SocketHandler(loop, Message::DEFAULT_KEY, port) {
+    UDPServerHandler(Loop& loop, int port, bool attachToLoop)
+        : SocketHandler(loop, Message::DEFAULT_KEY, port), mAttachToLoop(attachToLoop) {
         mAddr.sin_addr.s_addr = INADDR_ANY;
 
         mLoop.pushWork([this] () { bindSocket(); });
@@ -32,10 +32,12 @@ public:
                 LOGE() << "failed to bind" << std::endl;
         }
 
-        if (ret >= 0)
-            mLoop.attach(mSocketFd, this);
-        else
+        if (ret >= 0) {
+            if (mAttachToLoop)
+                mLoop.attach(mSocketFd, this);
+        } else {
             mLoop.pushWork([this] () { bindSocket(); }, RECONNECT_DELAY_MS);
+        }
     }
 
     virtual int read(std::string& addrStr) override {
@@ -49,6 +51,9 @@ public:
         }
         return ret;
     }
+
+private:
+    bool mAttachToLoop;
 };
 
 } // namespace tuya
