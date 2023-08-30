@@ -29,7 +29,42 @@ class Loop {
     };
 
 public:
+    class PipeHandler : public Handler {
+    public:
+        PipeHandler() {
+            pipe(mPipeFds);
+        }
+
+        ~PipeHandler() {
+            close(mPipeFds[0]);
+            close(mPipeFds[1]);
+        }
+
+        int readFd() const {
+            return mPipeFds[0];
+        }
+
+        int writeFd() const {
+            return mPipeFds[1];
+        }
+
+        void write(char c = '\0') {
+            const uint8_t buf[1] = { c };
+            ::write(mPipeFds[1], buf, 1);
+        }
+
+        virtual void handleReadable(ReadableEvent& e) {
+            EV_LOGD(e) << "pipe is readable" << std::endl;
+            uint8_t buf[1];
+            read(mPipeFds[0], buf, 1);
+        }
+
+    private:
+        int mPipeFds[2];
+    };
+
     Loop() {
+        attach(mPipeHandler.readFd(), &mPipeHandler);
     }
 
     void attach(Handler* handler) {
@@ -77,6 +112,7 @@ public:
 
     void pushWork(std::function<void()>&& work, uint32_t delayMs = 0) {
         mWork.push(DelayedWork(std::chrono::steady_clock::now() + std::chrono::milliseconds(delayMs), work));
+        wakeUp();
     }
 
     void handleEvent(Event&& e) {
@@ -126,6 +162,9 @@ public:
         }
         maxFd = (maxWritableFd > maxFd) ? maxWritableFd : maxFd;
 
+        FD_SET(mPipeHandler.readFd(), &readFds);
+        maxFd = (mPipeHandler.readFd() > maxFd) ? mPipeHandler.readFd() : maxFd;
+
         struct timeval tv = {
             .tv_sec = timeoutMs / 1000,
             .tv_usec = (timeoutMs % 1000 ) * 1000,
@@ -159,8 +198,14 @@ public:
         return 0;
     }
 
+    void wakeUp() {
+        mPipeHandler.write();
+    }
+
 private:
     LOG_MEMBERS(LOOP);
+
+    PipeHandler mPipeHandler;
 
     std::priority_queue<DelayedWork, std::vector<DelayedWork>, OrderByDeadline> mWork;
     std::map<int, Handler*> mHandlers;
