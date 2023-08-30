@@ -16,6 +16,7 @@ class TuyaWorker : public QThread, public Handler {
 public:
     /* workaround to initialize mLoop before SocketHandler, which needs an initialized loop as argument */
     TuyaWorker() : mScanner(mLoop) {
+        mRunning = true;
         mLoop.attach(this);
     }
 
@@ -48,7 +49,7 @@ public:
     }
 
     virtual void run() override {
-        for (;;) {
+        while (mRunning) {
             try {
                 mLoop.loop();
             } catch (const std::runtime_error& e) {
@@ -56,6 +57,11 @@ public:
                 return;
             }
         }
+    }
+
+    void stop() {
+        mRunning = false;
+        mLoop.wakeUp();
     }
 
 signals:
@@ -67,6 +73,7 @@ signals:
 private:
     LOG_MEMBERS(WORKER);
 
+    std::atomic_bool mRunning;
     Loop mLoop;
     tuya::Scanner mScanner;
 };
