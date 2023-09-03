@@ -24,11 +24,15 @@ public:
 
     virtual void handleWritable(WritableEvent& e) override {
         int so_error;
+        struct sockaddr_in addr;
         socklen_t len = sizeof(so_error);
 
         getsockopt(mSocketFd, SOL_SOCKET, SO_ERROR, &so_error, &len);
 
-        if (so_error == 0) {
+        len = sizeof(addr);
+
+        int ret = getpeername(mSocketFd, (struct sockaddr *) &addr, &len);
+        if ((so_error == 0) && (ret == 0)) {
             if (mLoop.attach(mSocketFd, this)) {
                 LOGE() << "failed to attach to loop" << std::endl;
             } else {
