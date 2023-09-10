@@ -54,6 +54,8 @@ public:
 
     int setBrightness(int brightness, Callback_t cb = nullptr) {
         const auto& key = brightnessKey();
+        if (key == "2")
+            brightness = std::max(brightness, 25);
         if (key.length())
             return sendCommand(Message::CONTROL, ordered_json{{key, brightness}}, cb);
         return -EINVAL;
