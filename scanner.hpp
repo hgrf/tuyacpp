@@ -11,6 +11,10 @@ namespace tuya {
 
 class Scanner : public UDPServerHandler {
 public:
+    Scanner(Loop& loop, const ordered_json& devicesData) : UDPServerHandler(loop, 6667, false), mKnownDevices(devicesData) {
+        init();
+    }
+
     Scanner(Loop& loop, const std::string& devicesFile = "tinytuya/devices.json") : UDPServerHandler(loop, 6667, false) {
         std::ifstream ifs(devicesFile);
         if (ifs.is_open()) {
@@ -20,14 +24,7 @@ public:
             mKnownDevices = ordered_json::array();
         }
 
-        /* attach to loop as promiscuous handler */
-        mLoop.attach(this);
-
-        /* register all known devices */
-        for (const auto& devDesc : mKnownDevices) {
-            const auto& addr = devDesc["ip"];
-            mDevices[addr] = std::make_shared<Device>(mLoop, addr, devDesc["name"], devDesc["uuid"], devDesc["id"], devDesc["key"]);
-        }
+        init();
     }
 
     ~Scanner() {
@@ -73,6 +70,17 @@ public:
     }
 
 private:
+    void init() {
+        /* attach to loop as promiscuous handler */
+        mLoop.attach(this);
+
+        /* register all known devices */
+        for (const auto& devDesc : mKnownDevices) {
+            const auto& addr = devDesc["ip"];
+            mDevices[addr] = std::make_shared<Device>(mLoop, addr, devDesc["name"], devDesc["uuid"], devDesc["id"], devDesc["key"]);
+        }
+    }
+
     virtual const std::string& TAG() override { static const std::string tag = "SCANNER"; return tag; };
 
     ordered_json mKnownDevices;
