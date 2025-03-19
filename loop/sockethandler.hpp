@@ -3,6 +3,7 @@
 #include "loop.hpp"
 
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
 #include "../protocol/message55aa.hpp"
 
