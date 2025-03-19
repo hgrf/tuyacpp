@@ -3,7 +3,11 @@
 #include <iostream>
 #include <sstream>
 
-#include <openssl/evp.h>
+#ifdef TUYACPP_USE_MBEDTLS
+    #include <mbedtls/aes.h>
+#else
+    #include <openssl/evp.h>
+#endif
 
 #include <nlohmann/json.hpp>
 using ordered_json = nlohmann::ordered_json;
@@ -83,7 +87,26 @@ protected:
         std::string err;
         const char padNum = 16 - plain.length() % 16;
         std::string result = plain + std::string(padNum, padNum);
-        int p_len = result.length(); // , f_len = 0;
+
+#ifdef TUYACPP_USE_MBEDTLS
+        size_t p_len = result.length();
+        int f_len = 0;
+        mbedtls_aes_context aes_ctx;
+        mbedtls_aes_init(&aes_ctx);
+        if (mbedtls_aes_setkey_enc(&aes_ctx, (const unsigned char *) key.data(), 128) != 0) {
+            err = "mbedtls_aes_setkey_enc failed";
+        }
+        if (!err.length()) {
+            for (size_t i = 0; i < result.length(); i += 16) {
+                if (mbedtls_aes_crypt_ecb(&aes_ctx, MBEDTLS_AES_ENCRYPT, (const unsigned char *) result.data() + i, (unsigned char *) result.data() + i) != 0) {
+                    err = "mbedtls_aes_crypt_ecb failed";
+                    break;
+                }
+            }
+        }
+        mbedtls_aes_free(&aes_ctx);
+#else
+        int p_len = result.length();
 
         EVP_CIPHER_CTX* en = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(en);
@@ -99,6 +122,7 @@ protected:
         // }
         result.resize(p_len);
         EVP_CIPHER_CTX_free(en);
+#endif
 
         if(err.length()) {
             result.clear();
@@ -112,6 +136,25 @@ protected:
         // TODO: padding operation should be symmetric with encrypt
         std::string err;
         std::string result = cipher;
+
+#ifdef TUYACPP_USE_MBEDTLS
+        size_t p_len = result.length();
+        int f_len = 0;
+        mbedtls_aes_context aes_ctx;
+        mbedtls_aes_init(&aes_ctx);
+        if (mbedtls_aes_setkey_dec(&aes_ctx, (const unsigned char *) key.data(), 128) != 0) {
+            err = "mbedtls_aes_setkey_enc failed";
+        }
+        if (!err.length()) {
+            for (size_t i = 0; i < result.length(); i += 16) {
+                if (mbedtls_aes_crypt_ecb(&aes_ctx, MBEDTLS_AES_DECRYPT, (const unsigned char *) result.data() + i, (unsigned char *) result.data() + i) != 0) {
+                    err = "mbedtls_aes_crypt_ecb failed";
+                    break;
+                }
+            }
+        }
+        mbedtls_aes_free(&aes_ctx);
+#else
         int p_len = cipher.length();
         int f_len = 0;
 
@@ -127,10 +170,16 @@ protected:
             err = "EVP_DecryptFinal_ex failed";
         }
         EVP_CIPHER_CTX_free(de);
+#endif
 
         p_len += f_len;
         if (!err.length()) {
+#ifdef TUYACPP_USE_MBEDTLS
+            // TODO: for some reason, even when using the mbedtls_cipher API, we cannot get the correct length, so we have to rely on the JSON format
+            result.resize(result.find_last_of('}') + 1);
+#else
             result.resize(p_len);
+#endif
         } else {
             result.clear();
             LOGE() << "decrypt() failed: " << err << std::endl;
