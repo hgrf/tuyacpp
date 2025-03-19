@@ -26,7 +26,7 @@ public:
         /* register all known devices */
         for (const auto& devDesc : mKnownDevices) {
             const auto& addr = devDesc["ip"];
-            mDevices[addr] = std::make_shared<Device>(mLoop, addr);
+            mDevices[addr] = std::make_shared<Device>(mLoop, addr, devDesc["name"], devDesc["uuid"], devDesc["id"], devDesc["key"]);
         }
     }
 
@@ -62,7 +62,7 @@ public:
         }
 
         /* register new device */
-        auto dev = std::make_shared<Device>(mLoop, e.addr);
+        auto dev = std::make_shared<Device>(mLoop, e.addr, "unknown", "unknown", "unknown", "unknown");
         EV_LOGI(e) << "new device discovered: " << static_cast<std::string>(*dev) << std::endl;
         mDevices[e.addr] = std::move(dev);
     }

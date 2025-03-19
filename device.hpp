@@ -25,12 +25,6 @@ public:
     {
     }
 
-    Device(Loop &loop, const std::string& ip) :
-        // TODO: failure to look up will result in exception -> devices()[ip] should somehow return a default value (maybe device(ip)...)
-        Device(loop, ip, devices()[ip]["name"], devices()[ip]["uuid"], devices()[ip]["id"], devices()[ip]["key"])
-    {
-    }
-
     bool isOn() {
         const auto& key = switchKey();
         if (key.length())
@@ -170,23 +164,6 @@ public:
         ss << "Device { name: " << mName << " gwId: " << mGwId << ", devId: " << mDevId
             << ", localKey: " << mLocalKey << " }";
         return ss.str();
-    }
-
-    static ordered_json& devices() {
-        static ordered_json sDevices = ordered_json{};
-
-        if (!sDevices.size()) {
-            const std::string devicesFile = "tinytuya/devices.json";
-            std::ifstream ifs(devicesFile);
-            if (!ifs.is_open()) {
-                throw std::runtime_error("Failed to open file");
-            }
-            auto devices = ordered_json::parse(ifs);
-            for (const auto& dev : devices)
-                sDevices[dev.at("ip")] = dev;
-        }
-
-        return sDevices;
     }
 
     int brightnessScale() {
