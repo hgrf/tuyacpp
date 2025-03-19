@@ -64,7 +64,9 @@ public:
     };
 
     Loop() {
+#ifndef TUYACPP_NO_PIPE
         attach(mPipeHandler.readFd(), &mPipeHandler);
+#endif
     }
 
     void attach(Handler* handler) {
@@ -112,7 +114,9 @@ public:
 
     void pushWork(std::function<void()>&& work, uint32_t delayMs = 0) {
         mWork.push(DelayedWork(std::chrono::steady_clock::now() + std::chrono::milliseconds(delayMs), work));
+#ifndef TUYACPP_NO_PIPE
         wakeUp();
+#endif
     }
 
     void handleEvent(Event&& e) {
@@ -162,8 +166,10 @@ public:
         }
         maxFd = (maxWritableFd > maxFd) ? maxWritableFd : maxFd;
 
+#ifndef TUYACPP_NO_PIPE
         FD_SET(mPipeHandler.readFd(), &readFds);
         maxFd = (mPipeHandler.readFd() > maxFd) ? mPipeHandler.readFd() : maxFd;
+#endif
 
         struct timeval tv = {
             .tv_sec = timeoutMs / 1000,
@@ -198,14 +204,18 @@ public:
         return 0;
     }
 
+#ifndef TUYACPP_NO_PIPE
     void wakeUp() {
         mPipeHandler.write();
     }
+#endif
 
 private:
     LOG_MEMBERS(LOOP);
 
+#ifndef TUYACPP_NO_PIPE
     PipeHandler mPipeHandler;
+#endif
 
     std::priority_queue<DelayedWork, std::vector<DelayedWork>, OrderByDeadline> mWork;
     std::map<int, Handler*> mHandlers;
